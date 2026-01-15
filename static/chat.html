@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>IAtlas Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat {
+            width: 400px;
+            height: 500px;
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        .messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+
+        .user {
+            text-align: right;
+            margin: 5px;
+            color: blue;
+        }
+
+        .bot {
+            text-align: left;
+            margin: 5px;
+            color: green;
+        }
+
+        .input {
+            display: flex;
+            border-top: 1px solid #ccc;
+        }
+
+        input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            outline: none;
+        }
+
+        button {
+            padding: 10px;
+            border: none;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div class="chat">
+    <div class="messages" id="messages"></div>
+    <div class="input">
+        <input id="text" placeholder="Escribe aquí..." />
+        <button onclick="send()">Enviar</button>
+    </div>
+</div>
+
+<script>
+async function send() {
+    const textInput = document.getElementById("text");
+    const messages = document.getElementById("messages");
+
+    const text = textInput.value;
+    if (!text) return;
+
+    messages.innerHTML += `<div class="user">${text}</div>`;
+    textInput.value = "";
+
+    const response = await fetch("http://127.0.0.1:8000/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto: text })
+    });
+
+    const data = await response.json();
+    messages.innerHTML += `<div class="bot">${data.respuesta}</div>`;
+    messages.scrollTop = messages.scrollHeight;
+}
+</script>
+
+</body>
+</html>
