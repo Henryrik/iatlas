@@ -189,6 +189,12 @@ def inicio():
 # CHAT
 # =========================
 
+from fastapi.responses import FileResponse
+
+@app.get("/chat")
+def chat_ui():
+    return FileResponse("static/chat.html")
+
 @app.post("/chat")
 def conversar(mensaje: Mensaje):
     texto = mensaje.texto.strip()
