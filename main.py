@@ -78,13 +78,94 @@ def detectar_intencion(texto: str):
     return "desconocido"
 
 # =========================
+# NIVEL 3 – CLASIFICACIÓN
+# =========================
+
+def clasificar_pregunta(texto: str):
+    texto = texto.lower()
+
+    if any(p in texto for p in ["por qué", "por que"]):
+        return "causal"
+
+    if any(p in texto for p in ["cómo", "como"]):
+        return "procedimental"
+
+    if any(p in texto for p in ["qué es", "que es"]):
+        return "definicion"
+
+    if any(p in texto for p in ["opinas", "crees", "piensas"]):
+        return "opinion"
+
+    if texto.endswith("?"):
+        return "abierta"
+
+    return "afirmacion"
+
+# =========================
+# NIVEL 3 – RAZONAMIENTO
+# =========================
+
+def razonar_pregunta(texto: str, memoria: dict):
+    tipo = clasificar_pregunta(texto)
+
+    if tipo == "definicion":
+        return (
+            "Vamos paso a paso 🧠\n\n"
+            "1️⃣ Aclaramos el concepto\n"
+            "2️⃣ Vemos cómo se usa\n"
+            "3️⃣ Lo conectamos con ejemplos\n\n"
+            "¿Quieres una explicación simple o profunda?"
+        )
+
+    if tipo == "causal":
+        return (
+            "Buena pregunta.\n\n"
+            "Para entender un *por qué*:\n"
+            "1️⃣ Observamos el contexto\n"
+            "2️⃣ Analizamos causas\n"
+            "3️⃣ Pensamos consecuencias\n\n"
+            "¿Te gustaría empezar por el contexto?"
+        )
+
+    if tipo == "procedimental":
+        return (
+            "Podemos pensarlo de forma ordenada:\n\n"
+            "1️⃣ Definir el objetivo\n"
+            "2️⃣ Dividir en pasos\n"
+            "3️⃣ Avanzar con calma\n\n"
+            "¿Qué paso te interesa más?"
+        )
+
+    if tipo == "opinion":
+        return (
+            "Puedo darte una opinión razonada 🤔\n"
+            "pero antes me interesa la tuya.\n\n"
+            "¿Qué piensas tú?"
+        )
+
+    if tipo == "abierta":
+        return (
+            "Es una pregunta amplia.\n\n"
+            "En estos casos suelo:\n"
+            "1️⃣ Explorar ideas\n"
+            "2️⃣ Comparar puntos de vista\n"
+            "3️⃣ Sacar conclusiones provisionales\n\n"
+            "¿Por dónde empezamos?"
+        )
+
+    return (
+        "Estoy procesando lo que dices.\n"
+        "Si quieres, reformúlalo o dime qué parte te interesa."
+    )
+
+# =========================
 # FASTAPI
 # =========================
 
 app = FastAPI(
     title="IAtlas",
     description="IA personal en español",
-    version="0.3"
+    version="0.4"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -102,7 +183,7 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas está activa y escuchando"}
+    return {"estado": "IAtlas está activa y razonando"}
 
 # =========================
 # CHAT
@@ -115,9 +196,7 @@ def conversar(mensaje: Mensaje):
     intencion = detectar_intencion(texto)
 
     if intencion == "saludo":
-        return {
-            "respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']}. Estoy aquí contigo, con calma 😊"
-        }
+        return {"respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']}. Estoy aquí contigo 😊"}
 
     if intencion == "aprender_nombre":
         nombre = texto.lower().split("me llamo")[-1].strip().capitalize()
@@ -142,56 +221,28 @@ def conversar(mensaje: Mensaje):
         return {"respuesta": "Estoy bien 😊 Gracias por preguntar. ¿Y tú?"}
 
     if intencion == "gustos_ia":
-        return {
-            "respuesta": (
-                "Me gusta aprender contigo, explicar cosas paso a paso "
-                "y ayudarte a pensar con calma 😊"
-            )
-        }
+        return {"respuesta": "Me gusta aprender contigo y ayudarte a pensar con calma 😊"}
 
     if intencion == "aprendizaje":
-        return {
-            "respuesta": (
-                "Aprendo lo que tú me enseñas aquí. "
-                "Guardo recuerdos y mejoro con cada conversación."
-            )
-        }
+        return {"respuesta": "Aprendo observando cómo preguntas y qué te interesa 🧠"}
 
     if intencion == "identidad":
-        return {
-            "respuesta": (
-                "Soy IAtlas 🤖. Una IA personal creada para acompañarte, "
-                "escucharte y ayudarte a entender el mundo."
-            )
-        }
+        return {"respuesta": "Soy IAtlas 🤖, una IA diseñada para razonar contigo."}
 
     if intencion == "matematicas":
         try:
-            expresion = (
-                texto.lower()
-                .replace("resolver", "")
-                .replace("calcular", "")
-                .strip()
-            )
-
+            expresion = texto.lower().replace("resolver", "").replace("calcular", "").strip()
             if "=" in expresion:
                 izquierda, derecha = expresion.split("=")
                 ecuacion = sp.Eq(sp.sympify(izquierda), sp.sympify(derecha))
                 resultado = sp.solve(ecuacion, x)
                 return {"respuesta": f"La solución es: {resultado}"}
-
-            resultado = sp.sympify(expresion)
-            return {"respuesta": f"El resultado es: {resultado}"}
-
+            return {"respuesta": f"El resultado es: {sp.sympify(expresion)}"}
         except:
             return {"respuesta": "No pude resolver eso 😕"}
 
-    # CONVERSACIÓN NATURAL (fallback)
-    return {
-        "respuesta": (
-            "Buena pregunta 😊\n"
-            "Puedo ayudarte a pensar, aprender cosas sobre ti, "
-            "resolver problemas o simplemente charlar.\n\n"
-            "Dime qué te gustaría hacer."
-        )
-    }
+    # =========================
+    # RAZONAMIENTO NIVEL 3
+    # =========================
+    respuesta = razonar_pregunta(texto, memoria)
+    return {"respuesta": respuesta}
