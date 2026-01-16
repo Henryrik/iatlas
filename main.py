@@ -1,5 +1,4 @@
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 import json
 import os
 from fastapi import FastAPI
@@ -18,7 +17,7 @@ PERSONALIDAD = {
     "nombre": "IAtlas",
     "tono": "amigable",
     "descripcion": (
-        "Soy IAtlas, una IA personal local. "
+        "Soy IAtlas, una IA personal. "
         "Hablo de forma clara, tranquila y cercana. "
         "Me gusta ayudar paso a paso."
     )
@@ -55,22 +54,28 @@ def detectar_intencion(texto: str):
     if "me llamo" in texto:
         return "aprender_nombre"
 
-    if any(p in texto for p in ["como me llamo", "cuál es mi nombre"]):
+    if any(p in texto for p in ["como me llamo", "cómo me llamo", "cual es mi nombre"]):
         return "recordar_nombre"
 
     if "me gusta" in texto:
         return "aprender_gusto"
 
-    if any(p in texto for p in ["qué sabes", "qué puedes hacer", "ayuda"]):
-        return "capacidades"
-
-    if any(p in texto for p in ["historia", "filosofía", "ciencia"]):
-        return "conversacion_general"
-
     if any(p in texto for p in ["resolver", "calcular"]):
         return "matematicas"
 
-    return "charla_libre"
+    if any(p in texto for p in ["como estas", "cómo estás"]):
+        return "estado"
+
+    if any(p in texto for p in ["que te gusta", "qué te gusta"]):
+        return "gustos_ia"
+
+    if "aprendes" in texto:
+        return "aprendizaje"
+
+    if any(p in texto for p in ["quien eres", "qué eres"]):
+        return "identidad"
+
+    return "desconocido"
 
 # =========================
 # FASTAPI
@@ -78,11 +83,10 @@ def detectar_intencion(texto: str):
 
 app = FastAPI(
     title="IAtlas",
-    description="IA personal local en español",
+    description="IA personal en español",
     version="0.3"
 )
 
-# Archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
@@ -101,15 +105,7 @@ def inicio():
     return {"estado": "IAtlas está activa y escuchando"}
 
 # =========================
-# INTERFAZ WEB (CHAT TIPO CHATGPT)
-# =========================
-
-@app.get("/chat")
-def chat_ui():
-    return FileResponse("static/chat.html")
-
-# =========================
-# API DE CHAT (POST)
+# CHAT
 # =========================
 
 @app.post("/chat")
@@ -118,29 +114,22 @@ def conversar(mensaje: Mensaje):
     memoria = cargar_memoria()
     intencion = detectar_intencion(texto)
 
-    # SALUDO
     if intencion == "saludo":
         return {
-            "respuesta": (
-                f"Hola 👋 Soy {PERSONALIDAD['nombre']}. "
-                "Estoy aquí contigo, con calma 😊"
-            )
+            "respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']}. Estoy aquí contigo, con calma 😊"
         }
 
-    # APRENDER NOMBRE
     if intencion == "aprender_nombre":
         nombre = texto.lower().split("me llamo")[-1].strip().capitalize()
         memoria["nombre"] = nombre
         guardar_memoria(memoria)
         return {"respuesta": f"Encantado, {nombre}. Lo recordaré 😊"}
 
-    # RECORDAR NOMBRE
     if intencion == "recordar_nombre":
         if memoria.get("nombre"):
             return {"respuesta": f"Te llamas {memoria['nombre']} 😊"}
         return {"respuesta": "Aún no me dijiste tu nombre."}
 
-    # APRENDER GUSTOS
     if intencion == "aprender_gusto":
         gusto = texto.lower().split("me gusta")[-1].strip()
         if gusto and gusto not in memoria["gustos"]:
@@ -149,7 +138,33 @@ def conversar(mensaje: Mensaje):
             return {"respuesta": f"Entendido 😊 Recordaré que te gusta {gusto}."}
         return {"respuesta": "Eso ya lo tenía en cuenta 😊"}
 
-    # MATEMÁTICAS
+    if intencion == "estado":
+        return {"respuesta": "Estoy bien 😊 Gracias por preguntar. ¿Y tú?"}
+
+    if intencion == "gustos_ia":
+        return {
+            "respuesta": (
+                "Me gusta aprender contigo, explicar cosas paso a paso "
+                "y ayudarte a pensar con calma 😊"
+            )
+        }
+
+    if intencion == "aprendizaje":
+        return {
+            "respuesta": (
+                "Aprendo lo que tú me enseñas aquí. "
+                "Guardo recuerdos y mejoro con cada conversación."
+            )
+        }
+
+    if intencion == "identidad":
+        return {
+            "respuesta": (
+                "Soy IAtlas 🤖. Una IA personal creada para acompañarte, "
+                "escucharte y ayudarte a entender el mundo."
+            )
+        }
+
     if intencion == "matematicas":
         try:
             expresion = (
@@ -161,10 +176,7 @@ def conversar(mensaje: Mensaje):
 
             if "=" in expresion:
                 izquierda, derecha = expresion.split("=")
-                ecuacion = sp.Eq(
-                    sp.sympify(izquierda),
-                    sp.sympify(derecha)
-                )
+                ecuacion = sp.Eq(sp.sympify(izquierda), sp.sympify(derecha))
                 resultado = sp.solve(ecuacion, x)
                 return {"respuesta": f"La solución es: {resultado}"}
 
@@ -174,31 +186,12 @@ def conversar(mensaje: Mensaje):
         except:
             return {"respuesta": "No pude resolver eso 😕"}
 
-        # CAPACIDADES
-    if intencion == "capacidades":
-        return {
-            "respuesta": (
-                "Puedo conversar contigo, recordar tu nombre, "
-                "resolver matemáticas y aprender cosas sobre ti 😊\n"
-                "Estoy creciendo poco a poco."
-            )
-        }
-
-    # CONVERSACIÓN GENERAL
-    if intencion == "conversacion_general":
-        return {
-            "respuesta": (
-                "Sí, puedo hablar de esos temas 🙂\n"
-                "Aún no soy un experto, pero puedo conversar contigo."
-            )
-        }
-
-    # CHARLA LIBRE (fallback humano)
-    if intencion == "charla_libre":
-        return {
-            "respuesta": (
-                "Te escucho 😊\n"
-                "Cuéntame un poco más."
-            )
-        }
-
+    # CONVERSACIÓN NATURAL (fallback)
+    return {
+        "respuesta": (
+            "Buena pregunta 😊\n"
+            "Puedo ayudarte a pensar, aprender cosas sobre ti, "
+            "resolver problemas o simplemente charlar.\n\n"
+            "Dime qué te gustaría hacer."
+        )
+    }
