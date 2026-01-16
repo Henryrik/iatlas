@@ -1,99 +1,128 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>IAtlas Chat</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f4f4f4;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
+  <meta charset="UTF-8" />
+  <title>IAtlas</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      margin: 0;
+    }
 
-        .chat {
-            width: 400px;
-            height: 500px;
-            background: white;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-        }
+    header {
+      background: #020617;
+      padding: 15px;
+      text-align: center;
+      font-size: 1.2em;
+      font-weight: bold;
+    }
 
-        .messages {
-            flex: 1;
-            padding: 10px;
-            overflow-y: auto;
-        }
+    #chat {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+    }
 
-        .user {
-            text-align: right;
-            margin: 5px;
-            color: blue;
-        }
+    .mensaje {
+      margin-bottom: 10px;
+      max-width: 70%;
+      padding: 10px;
+      border-radius: 8px;
+    }
 
-        .bot {
-            text-align: left;
-            margin: 5px;
-            color: green;
-        }
+    .usuario {
+      background: #2563eb;
+      align-self: flex-end;
+      margin-left: auto;
+    }
 
-        .input {
-            display: flex;
-            border-top: 1px solid #ccc;
-        }
+    .ia {
+      background: #1e293b;
+      align-self: flex-start;
+      margin-right: auto;
+    }
 
-        input {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            outline: none;
-        }
+    footer {
+      display: flex;
+      padding: 10px;
+      background: #020617;
+    }
 
-        button {
-            padding: 10px;
-            border: none;
-            background: #007bff;
-            color: white;
-            cursor: pointer;
-        }
-    </style>
+    input {
+      flex: 1;
+      padding: 10px;
+      font-size: 1em;
+      border: none;
+      border-radius: 4px;
+    }
+
+    button {
+      margin-left: 10px;
+      padding: 10px 15px;
+      font-size: 1em;
+      cursor: pointer;
+      background: #22c55e;
+      border: none;
+      border-radius: 4px;
+    }
+  </style>
 </head>
 <body>
 
-<div class="chat">
-    <div class="messages" id="messages"></div>
-    <div class="input">
-        <input id="text" placeholder="Escribe aquí..." />
-        <button onclick="send()">Enviar</button>
-    </div>
-</div>
+<header>
+  🤖 IAtlas — Tu IA personal
+</header>
+
+<div id="chat"></div>
+
+<footer>
+  <input id="input" type="text" placeholder="Escribe aquí..." />
+  <button onclick="enviar()">Enviar</button>
+</footer>
 
 <script>
-async function send() {
-    const textInput = document.getElementById("text");
-    const messages = document.getElementById("messages");
+  const chat = document.getElementById("chat");
+  const input = document.getElementById("input");
 
-    const text = textInput.value;
-    if (!text) return;
+  function agregarMensaje(texto, clase) {
+    const div = document.createElement("div");
+    div.className = "mensaje " + clase;
+    div.textContent = texto;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
 
-    messages.innerHTML += `<div class="user">${text}</div>`;
-    textInput.value = "";
+  async function enviar() {
+    const texto = input.value.trim();
+    if (!texto) return;
 
-    const response = await fetch("http://127.0.0.1:8000/chat", {
+    agregarMensaje(texto, "usuario");
+    input.value = "";
+
+    try {
+      const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto: text })
-    });
+        body: JSON.stringify({ texto })
+      });
 
-    const data = await response.json();
-    messages.innerHTML += `<div class="bot">${data.respuesta}</div>`;
-    messages.scrollTop = messages.scrollHeight;
-}
+      const data = await res.json();
+      agregarMensaje(data.respuesta, "ia");
+    } catch (e) {
+      agregarMensaje("Error al conectar con IAtlas 😕", "ia");
+    }
+  }
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") enviar();
+  });
+
+  agregarMensaje("Hola 👋 Soy IAtlas. Estoy listo para hablar contigo.", "ia");
 </script>
 
 </body>

@@ -1,4 +1,5 @@
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import json
 import os
 from fastapi import FastAPI
@@ -72,9 +73,10 @@ def detectar_intencion(texto: str):
 app = FastAPI(
     title="IAtlas",
     description="IA personal local en español",
-    version="0.2"
+    version="0.3"
 )
 
+# Archivos estáticos
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
@@ -93,7 +95,15 @@ def inicio():
     return {"estado": "IAtlas está activa y escuchando"}
 
 # =========================
-# CHAT
+# INTERFAZ WEB (CHAT TIPO CHATGPT)
+# =========================
+
+@app.get("/chat")
+def chat_ui():
+    return FileResponse("static/chat.html")
+
+# =========================
+# API DE CHAT (POST)
 # =========================
 
 @app.post("/chat")
