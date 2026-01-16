@@ -49,22 +49,28 @@ def guardar_memoria(memoria):
 def detectar_intencion(texto: str):
     texto = texto.lower()
 
-    if "hola" in texto or "buenas" in texto:
+    if any(p in texto for p in ["hola", "buenas", "hey"]):
         return "saludo"
 
     if "me llamo" in texto:
         return "aprender_nombre"
 
-    if "como me llamo" in texto or "cuál es mi nombre" in texto:
+    if any(p in texto for p in ["como me llamo", "cuál es mi nombre"]):
         return "recordar_nombre"
 
     if "me gusta" in texto:
         return "aprender_gusto"
 
-    if "resolver" in texto or "calcular" in texto:
+    if any(p in texto for p in ["qué sabes", "qué puedes hacer", "ayuda"]):
+        return "capacidades"
+
+    if any(p in texto for p in ["historia", "filosofía", "ciencia"]):
+        return "conversacion_general"
+
+    if any(p in texto for p in ["resolver", "calcular"]):
         return "matematicas"
 
-    return "desconocido"
+    return "charla_libre"
 
 # =========================
 # FASTAPI
@@ -168,10 +174,31 @@ def conversar(mensaje: Mensaje):
         except:
             return {"respuesta": "No pude resolver eso 😕"}
 
-    # DESCONOCIDO
-    return {
-        "respuesta": (
-            "No estoy seguro de haber entendido 🤔. "
-            "Puedes hablarme con tranquilidad."
-        )
-    }
+        # CAPACIDADES
+    if intencion == "capacidades":
+        return {
+            "respuesta": (
+                "Puedo conversar contigo, recordar tu nombre, "
+                "resolver matemáticas y aprender cosas sobre ti 😊\n"
+                "Estoy creciendo poco a poco."
+            )
+        }
+
+    # CONVERSACIÓN GENERAL
+    if intencion == "conversacion_general":
+        return {
+            "respuesta": (
+                "Sí, puedo hablar de esos temas 🙂\n"
+                "Aún no soy un experto, pero puedo conversar contigo."
+            )
+        }
+
+    # CHARLA LIBRE (fallback humano)
+    if intencion == "charla_libre":
+        return {
+            "respuesta": (
+                "Te escucho 😊\n"
+                "Cuéntame un poco más."
+            )
+        }
+
