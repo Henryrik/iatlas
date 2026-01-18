@@ -13,43 +13,49 @@ HEADERS = {
 def extraer_entidad(texto):
     t = texto.lower()
     t = re.sub(r"[¿?¡!]", "", t)
-    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "cuéntame", "extiéndete", "todo", "detallado"]
+    # Limpieza masiva de ruido para encontrar el núcleo del tema
+    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "todo", "detallado", "como", "ocurrio", "disuelva", "desaparecio"]
     palabras = [p for p in t.split() if p not in basura]
     return " ".join(palabras).strip()
 
-def formatear_respuesta_total(texto, entidad):
-    """Estructura una respuesta de nivel enciclopédico"""
-    # Dividimos en párrafos para detectar puntos clave de forma natural
-    parrafos = [p for p in texto.split('\n') if len(p.strip()) > 50]
+def formatear_erudito(texto, entidad):
+    """Crea una estructura de reporte ejecutivo con puntos clave"""
+    # Limpieza de saltos de línea excesivos
+    texto_limpio = re.sub(r'\n+', '\n', texto).strip()
+    parrafos = [p for p in texto_limpio.split('.') if len(p.strip()) > 40]
     
-    resumen_puntos = ""
-    for i, p in enumerate(parrafos[:8]): # Extraemos hasta 8 puntos clave del contenido real
-        resumen_puntos += f"🔹 {p[:150]}...\n"
+    # Construcción de Puntos Clave
+    puntos_clave = ""
+    for i, p in enumerate(parrafos[:6]):
+        puntos_clave += f"🔹 {p.strip()}.\n"
 
-    return f"🏛️ **ENCICLOPEDIA IATLAS: {entidad.upper()}**\n\n" \
-           f"🧐 **ANÁLISIS DE PUNTOS CLAVE:**\n{resumen_puntos}\n" \
-           f"📜 **CRÓNICA COMPLETA:**\n{texto}"
+    return f"🏛️ **ARCHIVO HISTÓRICO: {entidad.upper()}**\n\n" \
+           f"✅ **RESUMEN EJECUTIVO (Puntos Clave):**\n{puntos_clave}\n" \
+           f"📜 **CRÓNICA DETALLADA:**\n{texto_limpio[:4000]}..."
 
-def buscar_en_internet_sin_limites(tema):
-    """Busca en múltiples fuentes y combina el conocimiento"""
+def investigacion_profunda(tema):
+    """Navega por múltiples sitios para extraer conocimiento sin límites"""
     try:
-        # Buscamos fuentes académicas y detalladas
-        query = f"{tema} historia profunda cronología completa detalles"
-        urls = list(search(query, num_results=5, lang="es"))
-        
+        # Búsqueda ampliada para evitar bloqueos
+        consultas = [f"{tema} historia completa detallada", f"por que desaparecio {tema}", f"cronologia de {tema}"]
         conocimiento_acumulado = ""
-        for url in urls:
-            r = requests.get(url, headers=HEADERS, timeout=15)
-            if r.status_code == 200:
-                # Extraemos TODO el texto disponible sin límites estrictos
-                texto = trafilatura.extract(r.text, include_comments=False, include_tables=True, include_links=False)
-                if texto and len(texto) > 600:
-                    conocimiento_acumulado += f"\n--- Fuente: {url} ---\n{texto}\n"
-                    if len(conocimiento_acumulado) > 8000: break # Límite de seguridad para el servidor
         
+        for q in consultas:
+            urls = list(search(q, num_results=3, lang="es"))
+            for url in urls:
+                try:
+                    r = requests.get(url, headers=HEADERS, timeout=15)
+                    if r.status_code == 200:
+                        contenido = trafilatura.extract(r.text, include_tables=True, include_comments=False)
+                        if contenido and len(contenido) > 500:
+                            conocimiento_acumulado += f"\n{contenido}\n"
+                            if len(conocimiento_acumulado) > 6000: break
+                except: continue
+            if len(conocimiento_acumulado) > 3000: break
+            
         return conocimiento_acumulado if conocimiento_acumulado else None
     except Exception as e:
-        print(f"Error en investigación profunda: {e}")
+        print(f"Error en gran archivo: {e}")
         return None
 
 def pensar(texto_usuario):
@@ -59,19 +65,20 @@ def pensar(texto_usuario):
     else: memoria = {}
 
     entidad = extraer_entidad(texto_usuario)
-    if not entidad: return "Hola Henry. El conocimiento no tiene límites. ¿Qué civilización o evento exploramos hoy?"
+    if not entidad or len(entidad) < 3: 
+        return "Hola Henry. Soy IAtlas, tu historiador personal. ¿Qué civilización quieres que investigue a fondo?"
 
-    # Siempre busca información fresca si el usuario pide "todo" o detalle
-    info_texto = buscar_en_internet_sin_limites(entidad)
+    # Iniciamos búsqueda sin límites
+    info_total = investigacion_profunda(entidad)
 
-    if info_texto:
-        respuesta_final = formatear_respuesta_total(info_texto, entidad)
+    if info_total:
+        respuesta_formateada = formatear_erudito(info_total, entidad)
         
-        # Guardamos en memoria para aprendizaje continuo
-        memoria[entidad] = info_texto[:5000] # Guardamos un fragmento grande en JSON
+        # Guardar aprendizaje
+        memoria[entidad] = info_total[:2000]
         with open(MEMORIA_APRENDIZAJE, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
-        
-        return respuesta_final
+            
+        return respuesta_formateada
     
-    return f"Henry, la historia de '{entidad}' es vasta, pero los archivos digitales están protegidos en este momento. Intentemos con un término relacionado."
+    return f"Henry, he rastreado los archivos sobre '{entidad}' pero los sitios están inaccesibles ahora. Intenta con un término más general como 'Imperio Inca' o 'Antiguo Egipto'."
