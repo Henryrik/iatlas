@@ -1,6 +1,7 @@
 from fastapi.staticfiles import StaticFiles
 import json
 import os
+import requests
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -25,7 +26,7 @@ PERSONALIDAD = {
 }
 
 # =========================
-# CONOCIMIENTO HISTÓRICO (NIVEL 4)
+# CONOCIMIENTO LOCAL (Nivel 4)
 # =========================
 
 HISTORIA = {
@@ -64,16 +65,12 @@ HISTORIA = {
 }
 
 # =========================
-# MEMORIA
+# MEMORIA PERSONAL
 # =========================
 
 def cargar_memoria():
     if not os.path.exists(MEMORIA_ARCHIVO):
-        return {
-            "nombre": None,
-            "gustos": [],
-            "notas": []
-        }
+        return {"nombre": None, "gustos": [], "notas": []}
     with open(MEMORIA_ARCHIVO, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -94,122 +91,102 @@ def detectar_intencion(texto: str):
     if "me llamo" in texto:
         return "aprender_nombre"
 
-    if any(p in texto for p in ["como me llamo", "cómo me llamo", "cual es mi nombre"]):
-        return "recordar_nombre"
-
     if "me gusta" in texto:
         return "aprender_gusto"
 
     if any(p in texto for p in ["resolver", "calcular"]):
         return "matematicas"
 
-    if any(p in texto for p in ["como estas", "cómo estás"]):
-        return "estado"
-
-    if any(p in texto for p in ["que te gusta", "qué te gusta"]):
-        return "gustos_ia"
-
-    if "aprendes" in texto:
-        return "aprendizaje"
-
     if any(p in texto for p in ["quien eres", "qué eres"]):
         return "identidad"
 
-    if any(p in texto for p in ["guerra mundial", "primera guerra", "historia"]):
+    if "historia" in texto or "guerra" in texto:
         return "historia"
 
-    return "desconocido"
-
-# =========================
-# NIVEL 3 – CLASIFICACIÓN
-# =========================
-
-def clasificar_pregunta(texto: str):
-    texto = texto.lower()
-
-    if any(p in texto for p in ["por qué", "por que"]):
-        return "causal"
-
-    if any(p in texto for p in ["cómo", "como"]):
-        return "procedimental"
-
-    if any(p in texto for p in ["qué es", "que es"]):
-        return "definicion"
-
-    if any(p in texto for p in ["opinas", "crees", "piensas"]):
-        return "opinion"
-
-    if texto.endswith("?"):
-        return "abierta"
-
-    return "afirmacion"
+    return "general"
 
 # =========================
 # NIVEL 3 – RAZONAMIENTO
 # =========================
 
-def razonar_pregunta(texto: str, memoria: dict):
-    tipo = clasificar_pregunta(texto)
+def razonar_pregunta(texto: str):
+    texto = texto.lower()
 
-    if tipo == "definicion":
+    if "por qué" in texto:
         return (
-            "Vamos paso a paso 🧠\n\n"
-            "1️⃣ Aclaramos el concepto\n"
-            "2️⃣ Vemos cómo se usa\n"
-            "3️⃣ Lo conectamos con ejemplos"
+            "Para entenderlo mejor analicemos:\n"
+            "• contexto histórico\n"
+            "• causas principales\n"
+            "• consecuencias\n"
         )
 
-    if tipo == "causal":
+    if "cómo" in texto:
         return (
-            "Buena pregunta.\n\n"
-            "Analicemos:\n"
-            "• contexto\n"
-            "• causas\n"
-            "• consecuencias"
+            "Podemos explicarlo paso a paso:\n"
+            "1️⃣ Situación inicial\n"
+            "2️⃣ Desarrollo\n"
+            "3️⃣ Resultado"
         )
 
-    if tipo == "procedimental":
-        return (
-            "Podemos hacerlo así:\n"
-            "1️⃣ Definir objetivo\n"
-            "2️⃣ Separar pasos\n"
-            "3️⃣ Avanzar con calma"
-        )
-
-    if tipo == "opinion":
-        return (
-            "Puedo darte una opinión razonada 🤔\n"
-            "pero primero me interesa saber la tuya."
-        )
-
-    if tipo == "abierta":
-        return (
-            "Es una pregunta amplia.\n"
-            "Podemos explorar distintas ideas."
-        )
-
-    return "Estoy procesando lo que dices."
+    return "Podemos profundizar más si quieres."
 
 # =========================
-# RESPUESTA HISTÓRICA (NIVEL 4)
+# HISTORIA LOCAL
 # =========================
 
-def responder_historia(texto: str):
+def responder_historia_local(texto: str):
     texto = texto.lower()
 
     if "primera guerra mundial" in texto:
-        datos = HISTORIA["primera guerra mundial"]
-
+        d = HISTORIA["primera guerra mundial"]
         return (
-            f"La Primera Guerra Mundial ocurrió entre {datos['fecha']}.\n\n"
-            f"Bandos principales:\n"
-            f"Aliados: {', '.join(datos['bandos']['aliados'])}\n"
-            f"Potencias Centrales: {', '.join(datos['bandos']['potencias centrales'])}\n\n"
-            f"Causas:\n- " + "\n- ".join(datos["causas"]) + "\n\n"
-            f"Consecuencias:\n- " + "\n- ".join(datos["consecuencias"])
+            f"La Primera Guerra Mundial ocurrió entre {d['fecha']}.\n\n"
+            f"Aliados: {', '.join(d['bandos']['aliados'])}\n"
+            f"Potencias Centrales: {', '.join(d['bandos']['potencias centrales'])}\n\n"
+            f"Causas:\n- " + "\n- ".join(d["causas"]) + "\n\n"
+            f"Consecuencias:\n- " + "\n- ".join(d["consecuencias"])
         )
 
-    return "Tengo conocimiento histórico limitado por ahora."
+    return None
+
+# =========================
+# WIKIPEDIA (CONOCIMIENTO TEMPORAL)
+# =========================
+
+def buscar_wikipedia(tema: str):
+    url = "https://es.wikipedia.org/api/rest_v1/page/summary/" + tema.replace(" ", "_")
+
+    try:
+        r = requests.get(url, timeout=6)
+        if r.status_code != 200:
+            return None
+
+        data = r.json()
+        return data.get("extract")
+
+    except:
+        return None
+
+# =========================
+# SISTEMA HÍBRIDO
+# =========================
+
+def obtener_conocimiento_historico(texto: str):
+
+    # 1️⃣ memoria local
+    local = responder_historia_local(texto)
+    if local:
+        return local
+
+    # 2️⃣ búsqueda externa
+    externo = buscar_wikipedia(texto)
+    if externo:
+        return externo
+
+    return (
+        "No encontré información directa, "
+        "pero puedo ayudarte a analizar el contexto histórico."
+    )
 
 # =========================
 # FASTAPI
@@ -217,8 +194,8 @@ def responder_historia(texto: str):
 
 app = FastAPI(
     title="IAtlas",
-    description="IA personal en español",
-    version="0.5"
+    description="IA híbrida histórica",
+    version="1.0"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -236,7 +213,7 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas activa — Nivel 4 operativo"}
+    return {"estado": "IAtlas híbrido activo"}
 
 # =========================
 # CHAT
@@ -259,46 +236,22 @@ def conversar(mensaje: Mensaje):
         nombre = texto.lower().split("me llamo")[-1].strip().capitalize()
         memoria["nombre"] = nombre
         guardar_memoria(memoria)
-        return {"respuesta": f"Encantado, {nombre}. Lo recordaré 😊"}
-
-    if intencion == "recordar_nombre":
-        if memoria.get("nombre"):
-            return {"respuesta": f"Te llamas {memoria['nombre']} 😊"}
-        return {"respuesta": "Aún no me dijiste tu nombre."}
+        return {"respuesta": f"Encantado {nombre}, lo recordaré 😊"}
 
     if intencion == "aprender_gusto":
         gusto = texto.lower().split("me gusta")[-1].strip()
-        if gusto not in memoria["gustos"]:
-            memoria["gustos"].append(gusto)
-            guardar_memoria(memoria)
-        return {"respuesta": f"Recordado 😊 Te gusta {gusto}."}
-
-    if intencion == "estado":
-        return {"respuesta": "Estoy muy bien 😊 ¿Y tú?"}
-
-    if intencion == "gustos_ia":
-        return {"respuesta": "Me gusta ayudarte a pensar con calma 🧠"}
-
-    if intencion == "aprendizaje":
-        return {"respuesta": "Aprendo observando cómo preguntas."}
-
-    if intencion == "identidad":
-        return {"respuesta": "Soy IAtlas 🤖, una IA razonadora."}
+        memoria["gustos"].append(gusto)
+        guardar_memoria(memoria)
+        return {"respuesta": f"Entendido 😊 Te gusta {gusto}."}
 
     if intencion == "matematicas":
         try:
-            expresion = texto.lower().replace("resolver", "").replace("calcular", "").strip()
-            if "=" in expresion:
-                izquierda, derecha = expresion.split("=")
-                ecuacion = sp.Eq(sp.sympify(izquierda), sp.sympify(derecha))
-                resultado = sp.solve(ecuacion, x)
-                return {"respuesta": f"La solución es: {resultado}"}
-            return {"respuesta": f"Resultado: {sp.sympify(expresion)}"}
+            expr = texto.replace("resolver", "").replace("calcular", "")
+            return {"respuesta": str(sp.sympify(expr))}
         except:
-            return {"respuesta": "No pude resolver eso 😕"}
+            return {"respuesta": "No pude resolverlo 😕"}
 
     if intencion == "historia":
-        return {"respuesta": responder_historia(texto)}
+        return {"respuesta": obtener_conocimiento_historico(texto)}
 
-    # NIVEL 3 FINAL
-    return {"respuesta": razonar_pregunta(texto, memoria)}
+    return {"respuesta": razonar_pregunta(texto)}
