@@ -125,45 +125,51 @@ def extraer_entidad(texto):
 # WIKIPEDIA — BÚSQUEDA INTELIGENTE
 # ======================================================
 
+from urllib.parse import quote
+import requests
+
 def buscar_wikipedia(entidad):
     if not entidad:
         return None
 
     try:
-        # 🔎 OpenSearch — encuentra el título real
-        search_url = (
+        entidad_url = quote(entidad.strip())
+
+        # 1️⃣ intento directo
+        url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{entidad_url}"
+        r = requests.get(url, timeout=7)
+
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("extract"):
+                return data["extract"]
+
+        # 2️⃣ búsqueda alternativa
+        search_api = (
             "https://es.wikipedia.org/w/api.php"
-            "?action=opensearch"
-            f"&search={entidad}"
-            "&limit=1"
+            "?action=query"
+            "&list=search"
+            f"&srsearch={entidad_url}"
             "&format=json"
         )
 
-        r = requests.get(search_url, timeout=6).json()
+        rs = requests.get(search_api, timeout=7).json()
+        resultados = rs.get("query", {}).get("search", [])
 
-        if not r[1]:
-            return None
+        if resultados:
+            nuevo_titulo = quote(resultados[0]["title"])
+            r2 = requests.get(
+                f"https://es.wikipedia.org/api/rest_v1/page/summary/{nuevo_titulo}",
+                timeout=7
+            )
 
-        titulo_real = r[1][0]
+            if r2.status_code == 200:
+                return r2.json().get("extract")
 
-        resumen_url = (
-            "https://es.wikipedia.org/api/rest_v1/page/summary/"
-            + titulo_real.replace(" ", "_")
-        )
-
-        resumen = requests.get(resumen_url, timeout=6).json()
-
-        texto = resumen.get("extract")
-
-        if not texto:
-            return None
-
-        # ✂ limitar tamaño
-        texto = texto.replace("\n", " ")
-        return texto[:900] + "..."
+        return None
 
     except Exception as e:
-        print(f"[WIKI ERROR] {e}")
+        print("Wikipedia error:", e)
         return None
 
 # ======================================================
