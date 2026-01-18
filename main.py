@@ -1,66 +1,34 @@
-# =========================
-# IMPORTS
-# =========================
+# ======================================================
+# IATLAS — SISTEMA HÍBRIDO HISTÓRICO COMPLETO
+# ======================================================
 
-from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 import requests
-import re
 import json
 import os
+import re
 import sympy as sp
 
-# =========================
+# ======================================================
 # CONFIGURACIÓN GENERAL
-# =========================
+# ======================================================
 
 x = sp.symbols("x")
 MEMORIA_ARCHIVO = "memoria.json"
 
 PERSONALIDAD = {
     "nombre": "IAtlas",
-    "tono": "amigable",
-    "descripcion": (
-        "Soy IAtlas, una IA personal. "
-        "Hablo de forma clara, tranquila y cercana. "
-        "Me gusta ayudar paso a paso."
-    )
+    "descripcion": "IA personal con razonamiento histórico híbrido"
 }
 
-# =========================
-# CONOCIMIENTO LOCAL
-# =========================
-
-HISTORIA = {
-    "primera guerra mundial": {
-        "fecha": "1914–1918",
-        "bandos": {
-            "aliados": ["Francia", "Reino Unido", "Rusia", "Estados Unidos", "Italia"],
-            "potencias centrales": ["Alemania", "Imperio Austrohúngaro", "Imperio Otomano", "Bulgaria"]
-        },
-        "causas": [
-            "Nacionalismo",
-            "Imperialismo",
-            "Militarismo",
-            "Sistema de alianzas",
-            "Asesinato del archiduque Francisco Fernando"
-        ],
-        "consecuencias": [
-            "Más de 16 millones de muertos",
-            "Caída de imperios europeos",
-            "Tratado de Versalles",
-            "Camino hacia la Segunda Guerra Mundial"
-        ]
-    }
-}
-
-# =========================
-# MAPA SEMÁNTICO HISTÓRICO
-# =========================
+# ======================================================
+# MAPA SEMÁNTICO
+# ======================================================
 
 MAPA_HISTORICO = {
     "inca": "Imperio inca",
@@ -80,13 +48,30 @@ MAPA_HISTORICO = {
     "napoleón": "Napoleón Bonaparte",
 }
 
-# =========================
+# ======================================================
+# HISTORIA LOCAL
+# ======================================================
+
+HISTORIA_LOCAL = {
+    "primera guerra mundial": (
+        "La Primera Guerra Mundial ocurrió entre 1914 y 1918.\n\n"
+        "Causas principales:\n"
+        "- Nacionalismo\n- Imperialismo\n- Militarismo\n- Sistema de alianzas\n\n"
+        "Consecuencias:\n"
+        "- Más de 16 millones de muertos\n"
+        "- Caída de imperios\n"
+        "- Tratado de Versalles\n"
+        "- Camino hacia la Segunda Guerra Mundial"
+    )
+}
+
+# ======================================================
 # MEMORIA
-# =========================
+# ======================================================
 
 def cargar_memoria():
     if not os.path.exists(MEMORIA_ARCHIVO):
-        return {"nombre": None, "gustos": [], "notas": []}
+        return {"nombre": None, "gustos": []}
     with open(MEMORIA_ARCHIVO, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -94,68 +79,58 @@ def guardar_memoria(memoria):
     with open(MEMORIA_ARCHIVO, "w", encoding="utf-8") as f:
         json.dump(memoria, f, ensure_ascii=False, indent=2)
 
-# =========================
-# DETECTOR DE INTENCIÓN
-# =========================
+# ======================================================
+# INTENCIONES
+# ======================================================
 
 def detectar_intencion(texto: str):
-    texto = texto.lower()
+    t = texto.lower()
 
-    if any(p in texto for p in ["hola", "buenas", "hey"]):
+    if any(p in t for p in ["hola", "hey", "buenas"]):
         return "saludo"
-    if "me llamo" in texto:
+
+    if "me llamo" in t:
         return "nombre"
-    if "me gusta" in texto:
+
+    if "me gusta" in t:
         return "gusto"
-    if any(p in texto for p in ["resolver", "calcular"]):
+
+    if any(p in t for p in ["resolver", "calcular"]):
         return "matematicas"
-    if any(p in texto for p in ["historia", "imperio", "civilizacion", "inca", "maya", "romano", "egipto"]):
+
+    if any(p in t for p in [
+        "inca", "inca", "maya", "mayas", "romano", "roma",
+        "egipto", "grecia", "edad", "imperio", "historia"
+    ]):
         return "historia"
 
     return "general"
 
-# =========================
-# RAZONAMIENTO NIVEL 3
-# =========================
-
-def razonar_pregunta(texto: str):
-    if "por qué" in texto:
-        return "Analicemos el contexto, las causas y las consecuencias."
-    if "cómo" in texto:
-        return "Te explico el proceso paso a paso."
-    return "Podemos profundizar más si quieres."
-
-# =========================
-# EXTRACCIÓN DE TEMA
-# =========================
+# ======================================================
+# EXTRACCIÓN SEMÁNTICA
+# ======================================================
 
 def extraer_tema(texto: str):
     texto = texto.lower()
     texto = re.sub(r"[^\w\s]", "", texto)
 
-    palabras = texto.split()
-
     basura = {
-        "sabes","historia","de","los","las","el","la",
-        "sobre","acerca","puedes","explicarme",
-        "que","qué","en","un","una","por","favor"
+        "historia","de","los","las","el","la",
+        "sobre","acerca","puedes","explicame",
+        "que","qué","en","un","una","por","favor",
+        "sabes"
     }
 
-    palabras = [p for p in palabras if p not in basura]
-
+    palabras = [p for p in texto.split() if p not in basura]
     tema = " ".join(palabras)
 
-    # normalización directa
-    if tema in MAPA_HISTORICO:
-        return MAPA_HISTORICO[tema]
+    return MAPA_HISTORICO.get(tema, tema)
 
-    return tema
-
-# =========================
+# ======================================================
 # WIKIPEDIA
-# =========================
+# ======================================================
 
-def buscar_wikipedia(tema: str):
+def wikipedia(tema: str):
     if not tema:
         return None
 
@@ -168,46 +143,43 @@ def buscar_wikipedia(tema: str):
         r = requests.get(url, timeout=6)
         if r.status_code != 200:
             return None
-        data = r.json()
-        return data.get("extract")
+        return r.json().get("extract")
     except:
         return None
 
-# =========================
-# SISTEMA HÍBRIDO FINAL
-# =========================
+# ======================================================
+# SISTEMA HÍBRIDO
+# ======================================================
 
-def obtener_conocimiento_historico(texto: str):
+def conocimiento_historico(texto: str):
 
-    # 1️⃣ intentar local
-    local = responder_historia_local(texto)
-    if local:
-        return local
+    texto_l = texto.lower()
 
-    # 2️⃣ extraer y normalizar tema
+    # 1️⃣ conocimiento local
+    for clave in HISTORIA_LOCAL:
+        if clave in texto_l:
+            return HISTORIA_LOCAL[clave]
+
+    # 2️⃣ semántica
     tema = extraer_tema(texto)
 
-    # 3️⃣ Wikipedia
-    info = buscar_wikipedia(tema)
+    # 3️⃣ wikipedia
+    info = wikipedia(tema)
 
     if info:
         return info
 
-    # 4️⃣ fallback razonado
+    # 4️⃣ razonamiento
     return (
         f"No encontré información directa sobre '{tema}', "
         "pero puedo ayudarte a analizar su contexto histórico."
     )
 
-# =========================
+# ======================================================
 # FASTAPI
-# =========================
+# ======================================================
 
-app = FastAPI(
-    title="IAtlas",
-    description="IA híbrida histórica",
-    version="1.2"
-)
+app = FastAPI(title="IAtlas", version="2.0")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -224,25 +196,21 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas híbrido operativo"}
-
-# =========================
-# CHAT
-# =========================
+    return {"estado": "IAtlas híbrido activo"}
 
 @app.get("/chat")
 def chat_ui():
     return FileResponse("static/chat.html")
 
 @app.post("/chat")
-def conversar(mensaje: Mensaje):
+def chat(mensaje: Mensaje):
 
     texto = mensaje.texto.strip()
     memoria = cargar_memoria()
     intencion = detectar_intencion(texto)
 
     if intencion == "saludo":
-        return {"respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']} 😊"}
+        return {"respuesta": "Hola 👋 Soy IAtlas 😊"}
 
     if intencion == "nombre":
         nombre = texto.split("me llamo")[-1].strip().capitalize()
@@ -254,7 +222,7 @@ def conversar(mensaje: Mensaje):
         gusto = texto.split("me gusta")[-1].strip()
         memoria["gustos"].append(gusto)
         guardar_memoria(memoria)
-        return {"respuesta": f"Perfecto 😊 recordaré que te gusta {gusto}."}
+        return {"respuesta": f"Perfecto 😊 recordaré que te gusta {gusto}"}
 
     if intencion == "matematicas":
         try:
@@ -264,6 +232,6 @@ def conversar(mensaje: Mensaje):
             return {"respuesta": "No pude resolverlo 😕"}
 
     if intencion == "historia":
-        return {"respuesta": obtener_conocimiento_historico(texto)}
+        return {"respuesta": conocimiento_historico(texto)}
 
-    return {"respuesta": razonar_pregunta(texto)}
+    return {"respuesta": "Podemos profundizar más si quieres."}
