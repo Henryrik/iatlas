@@ -170,7 +170,6 @@ def buscar_wikipedia(tema: str):
     except Exception as e:
         return None
 
-
 # ======================================================
 # SISTEMA HÍBRIDO
 # ======================================================
