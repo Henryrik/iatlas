@@ -130,22 +130,46 @@ def extraer_tema(texto: str):
 # WIKIPEDIA
 # ======================================================
 
-def wikipedia(tema: str):
+def buscar_wikipedia(tema: str):
     if not tema:
         return None
 
-    url = (
-        "https://es.wikipedia.org/api/rest_v1/page/summary/"
-        + tema.replace(" ", "_")
-    )
-
     try:
-        r = requests.get(url, timeout=6)
-        if r.status_code != 200:
+        # 1️⃣ buscar título correcto
+        search_url = (
+            "https://es.wikipedia.org/w/api.php"
+            "?action=query"
+            "&list=search"
+            "&srsearch=" + tema +
+            "&format=json"
+        )
+
+        r = requests.get(search_url, timeout=6)
+        data = r.json()
+
+        resultados = data.get("query", {}).get("search", [])
+
+        if not resultados:
             return None
-        return r.json().get("extract")
-    except:
+
+        titulo = resultados[0]["title"]
+
+        # 2️⃣ pedir resumen real
+        summary_url = (
+            "https://es.wikipedia.org/api/rest_v1/page/summary/"
+            + titulo.replace(" ", "_")
+        )
+
+        r2 = requests.get(summary_url, timeout=6)
+
+        if r2.status_code != 200:
+            return None
+
+        return r2.json().get("extract")
+
+    except Exception as e:
         return None
+
 
 # ======================================================
 # SISTEMA HÍBRIDO
