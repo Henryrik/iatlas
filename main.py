@@ -131,14 +131,25 @@ def razonar_pregunta(texto: str):
 
 def extraer_tema(texto: str):
     texto = texto.lower()
-    basura = [
+    texto = re.sub(r"[^\w\s]", "", texto)
+
+    palabras = texto.split()
+
+    basura = {
         "sabes","historia","de","los","las","el","la",
         "sobre","acerca","puedes","explicarme",
         "que","qué","en","un","una","por","favor"
-    ]
-    texto = re.sub(r"[^\w\s]", "", texto)
-    palabras = [p for p in texto.split() if p not in basura]
-    return " ".join(palabras)
+    }
+
+    palabras = [p for p in palabras if p not in basura]
+
+    tema = " ".join(palabras)
+
+    # normalización directa
+    if tema in MAPA_HISTORICO:
+        return MAPA_HISTORICO[tema]
+
+    return tema
 
 # =========================
 # WIKIPEDIA
@@ -148,16 +159,17 @@ def buscar_wikipedia(tema: str):
     if not tema:
         return None
 
-    if tema in MAPA_HISTORICO:
-        tema = MAPA_HISTORICO[tema]
-
-    url = "https://es.wikipedia.org/api/rest_v1/page/summary/" + tema.replace(" ", "_")
+    url = (
+        "https://es.wikipedia.org/api/rest_v1/page/summary/"
+        + tema.replace(" ", "_")
+    )
 
     try:
         r = requests.get(url, timeout=6)
         if r.status_code != 200:
             return None
-        return r.json().get("extract")
+        data = r.json()
+        return data.get("extract")
     except:
         return None
 
@@ -167,18 +179,25 @@ def buscar_wikipedia(tema: str):
 
 def obtener_conocimiento_historico(texto: str):
 
-    # primero local
-    local = HISTORIA.get(texto.lower())
+    # 1️⃣ intentar local
+    local = responder_historia_local(texto)
     if local:
         return local
 
+    # 2️⃣ extraer y normalizar tema
     tema = extraer_tema(texto)
+
+    # 3️⃣ Wikipedia
     info = buscar_wikipedia(tema)
 
     if info:
         return info
 
-    return "No encontré información directa, pero puedo ayudarte a analizar el contexto histórico."
+    # 4️⃣ fallback razonado
+    return (
+        f"No encontré información directa sobre '{tema}', "
+        "pero puedo ayudarte a analizar su contexto histórico."
+    )
 
 # =========================
 # FASTAPI
