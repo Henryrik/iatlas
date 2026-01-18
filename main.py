@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sympy as sp
+from fastapi.responses import FileResponse
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -21,6 +22,45 @@ PERSONALIDAD = {
         "Hablo de forma clara, tranquila y cercana. "
         "Me gusta ayudar paso a paso."
     )
+}
+
+# =========================
+# CONOCIMIENTO HISTÓRICO (NIVEL 4)
+# =========================
+
+HISTORIA = {
+    "primera guerra mundial": {
+        "fecha": "1914–1918",
+        "bandos": {
+            "aliados": [
+                "Francia",
+                "Reino Unido",
+                "Rusia",
+                "Estados Unidos",
+                "Italia"
+            ],
+            "potencias centrales": [
+                "Alemania",
+                "Imperio Austrohúngaro",
+                "Imperio Otomano",
+                "Bulgaria"
+            ]
+        },
+        "causas": [
+            "Nacionalismo",
+            "Imperialismo",
+            "Militarismo",
+            "Sistema de alianzas",
+            "Asesinato del archiduque Francisco Fernando"
+        ],
+        "consecuencias": [
+            "Más de 16 millones de muertos",
+            "Caída de imperios europeos",
+            "Tratado de Versalles",
+            "Inestabilidad política en Europa",
+            "Camino hacia la Segunda Guerra Mundial"
+        ]
+    }
 }
 
 # =========================
@@ -75,6 +115,9 @@ def detectar_intencion(texto: str):
     if any(p in texto for p in ["quien eres", "qué eres"]):
         return "identidad"
 
+    if any(p in texto for p in ["guerra mundial", "primera guerra", "historia"]):
+        return "historia"
+
     return "desconocido"
 
 # =========================
@@ -113,50 +156,60 @@ def razonar_pregunta(texto: str, memoria: dict):
             "Vamos paso a paso 🧠\n\n"
             "1️⃣ Aclaramos el concepto\n"
             "2️⃣ Vemos cómo se usa\n"
-            "3️⃣ Lo conectamos con ejemplos\n\n"
-            "¿Quieres una explicación simple o profunda?"
+            "3️⃣ Lo conectamos con ejemplos"
         )
 
     if tipo == "causal":
         return (
             "Buena pregunta.\n\n"
-            "Para entender un *por qué*:\n"
-            "1️⃣ Observamos el contexto\n"
-            "2️⃣ Analizamos causas\n"
-            "3️⃣ Pensamos consecuencias\n\n"
-            "¿Te gustaría empezar por el contexto?"
+            "Analicemos:\n"
+            "• contexto\n"
+            "• causas\n"
+            "• consecuencias"
         )
 
     if tipo == "procedimental":
         return (
-            "Podemos pensarlo de forma ordenada:\n\n"
-            "1️⃣ Definir el objetivo\n"
-            "2️⃣ Dividir en pasos\n"
-            "3️⃣ Avanzar con calma\n\n"
-            "¿Qué paso te interesa más?"
+            "Podemos hacerlo así:\n"
+            "1️⃣ Definir objetivo\n"
+            "2️⃣ Separar pasos\n"
+            "3️⃣ Avanzar con calma"
         )
 
     if tipo == "opinion":
         return (
             "Puedo darte una opinión razonada 🤔\n"
-            "pero antes me interesa la tuya.\n\n"
-            "¿Qué piensas tú?"
+            "pero primero me interesa saber la tuya."
         )
 
     if tipo == "abierta":
         return (
-            "Es una pregunta amplia.\n\n"
-            "En estos casos suelo:\n"
-            "1️⃣ Explorar ideas\n"
-            "2️⃣ Comparar puntos de vista\n"
-            "3️⃣ Sacar conclusiones provisionales\n\n"
-            "¿Por dónde empezamos?"
+            "Es una pregunta amplia.\n"
+            "Podemos explorar distintas ideas."
         )
 
-    return (
-        "Estoy procesando lo que dices.\n"
-        "Si quieres, reformúlalo o dime qué parte te interesa."
-    )
+    return "Estoy procesando lo que dices."
+
+# =========================
+# RESPUESTA HISTÓRICA (NIVEL 4)
+# =========================
+
+def responder_historia(texto: str):
+    texto = texto.lower()
+
+    if "primera guerra mundial" in texto:
+        datos = HISTORIA["primera guerra mundial"]
+
+        return (
+            f"La Primera Guerra Mundial ocurrió entre {datos['fecha']}.\n\n"
+            f"Bandos principales:\n"
+            f"Aliados: {', '.join(datos['bandos']['aliados'])}\n"
+            f"Potencias Centrales: {', '.join(datos['bandos']['potencias centrales'])}\n\n"
+            f"Causas:\n- " + "\n- ".join(datos["causas"]) + "\n\n"
+            f"Consecuencias:\n- " + "\n- ".join(datos["consecuencias"])
+        )
+
+    return "Tengo conocimiento histórico limitado por ahora."
 
 # =========================
 # FASTAPI
@@ -165,7 +218,7 @@ def razonar_pregunta(texto: str, memoria: dict):
 app = FastAPI(
     title="IAtlas",
     description="IA personal en español",
-    version="0.4"
+    version="0.5"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -183,13 +236,11 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas está activa y razonando"}
+    return {"estado": "IAtlas activa — Nivel 4 operativo"}
 
 # =========================
 # CHAT
 # =========================
-
-from fastapi.responses import FileResponse
 
 @app.get("/chat")
 def chat_ui():
@@ -202,7 +253,7 @@ def conversar(mensaje: Mensaje):
     intencion = detectar_intencion(texto)
 
     if intencion == "saludo":
-        return {"respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']}. Estoy aquí contigo 😊"}
+        return {"respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']} 😊"}
 
     if intencion == "aprender_nombre":
         nombre = texto.lower().split("me llamo")[-1].strip().capitalize()
@@ -217,23 +268,22 @@ def conversar(mensaje: Mensaje):
 
     if intencion == "aprender_gusto":
         gusto = texto.lower().split("me gusta")[-1].strip()
-        if gusto and gusto not in memoria["gustos"]:
+        if gusto not in memoria["gustos"]:
             memoria["gustos"].append(gusto)
             guardar_memoria(memoria)
-            return {"respuesta": f"Entendido 😊 Recordaré que te gusta {gusto}."}
-        return {"respuesta": "Eso ya lo tenía en cuenta 😊"}
+        return {"respuesta": f"Recordado 😊 Te gusta {gusto}."}
 
     if intencion == "estado":
-        return {"respuesta": "Estoy bien 😊 Gracias por preguntar. ¿Y tú?"}
+        return {"respuesta": "Estoy muy bien 😊 ¿Y tú?"}
 
     if intencion == "gustos_ia":
-        return {"respuesta": "Me gusta aprender contigo y ayudarte a pensar con calma 😊"}
+        return {"respuesta": "Me gusta ayudarte a pensar con calma 🧠"}
 
     if intencion == "aprendizaje":
-        return {"respuesta": "Aprendo observando cómo preguntas y qué te interesa 🧠"}
+        return {"respuesta": "Aprendo observando cómo preguntas."}
 
     if intencion == "identidad":
-        return {"respuesta": "Soy IAtlas 🤖, una IA diseñada para razonar contigo."}
+        return {"respuesta": "Soy IAtlas 🤖, una IA razonadora."}
 
     if intencion == "matematicas":
         try:
@@ -243,12 +293,12 @@ def conversar(mensaje: Mensaje):
                 ecuacion = sp.Eq(sp.sympify(izquierda), sp.sympify(derecha))
                 resultado = sp.solve(ecuacion, x)
                 return {"respuesta": f"La solución es: {resultado}"}
-            return {"respuesta": f"El resultado es: {sp.sympify(expresion)}"}
+            return {"respuesta": f"Resultado: {sp.sympify(expresion)}"}
         except:
             return {"respuesta": "No pude resolver eso 😕"}
 
-    # =========================
-    # RAZONAMIENTO NIVEL 3
-    # =========================
-    respuesta = razonar_pregunta(texto, memoria)
-    return {"respuesta": respuesta}
+    if intencion == "historia":
+        return {"respuesta": responder_historia(texto)}
+
+    # NIVEL 3 FINAL
+    return {"respuesta": razonar_pregunta(texto, memoria)}
