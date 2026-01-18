@@ -1,5 +1,5 @@
 # ======================================================
-# IATLAS — MAIN SERVER (CUERPO)
+# IATLAS — MAIN SERVER (CUERPO FINAL)
 # El cerebro vive en cerebro.py
 # ======================================================
 
@@ -39,36 +39,37 @@ def cargar_json(path, default):
             contenido = f.read().strip()
             return json.loads(contenido) if contenido else default
 
-    except:
+    except Exception as e:
+        print("[MEMORIA ERROR]", e)
         return default
 
 
 def guardar_json(path, data):
     try:
-        temp = path + ".tmp"
-        with open(temp, "w", encoding="utf-8") as f:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(temp, path)
-    except:
-        pass
+        os.replace(tmp, path)
+    except Exception as e:
+        print("[MEMORIA WRITE ERROR]", e)
 
 # ======================================================
-# INTENCIÓN SIMPLE
+# DETECTOR DE INTENCIÓN (LIVIANO)
 # ======================================================
 
 def detectar_intencion(texto: str):
     t = texto.lower()
 
-    if any(p in t for p in ["hola", "hey", "buenas"]):
+    if any(p in t for p in ["hola", "hey", "buenas", "saludos"]):
         return "saludo"
 
-    if "me llamo" in t:
+    if "me llamo" in t or "mi nombre es" in t:
         return "nombre"
 
     if "me gusta" in t:
         return "gusto"
 
-    if any(p in t for p in ["resolver", "calcular"]):
+    if any(p in t for p in ["resolver", "calcular", "cuanto es", "cuánto es"]):
         return "matematicas"
 
     return "pensar"
@@ -77,7 +78,7 @@ def detectar_intencion(texto: str):
 # FASTAPI
 # ======================================================
 
-app = FastAPI(title="IAtlas", version="5.0")
+app = FastAPI(title="IAtlas", version="5.1")
 
 if not os.path.exists("static"):
     os.makedirs("static")
@@ -94,40 +95,96 @@ app.add_middleware(
 class Mensaje(BaseModel):
     texto: str
 
+# ======================================================
+# ENDPOINTS
+# ======================================================
+
 @app.get("/chat")
 def chat_ui():
     return FileResponse("static/chat.html")
+
 
 @app.post("/chat")
 def chat(m: Mensaje):
 
     texto = m.texto.strip()
-    memoria = cargar_json(MEMORIA_ARCHIVO, {"nombre": None, "gustos": []})
+
+    if not texto:
+        return {"respuesta": "Dime algo para empezar 😊"}
+
+    memoria = cargar_json(
+        MEMORIA_ARCHIVO,
+        {"nombre": None, "gustos": []}
+    )
 
     intencion = detectar_intencion(texto)
 
+    # --------------------------------------------------
+    # SALUDO
+    # --------------------------------------------------
+
     if intencion == "saludo":
+        nombre = memoria.get("nombre")
+        if nombre:
+            return {"respuesta": f"Hola 👋 {nombre}, me alegra verte de nuevo."}
         return {"respuesta": "Hola 👋 Soy IAtlas."}
 
+    # --------------------------------------------------
+    # NOMBRE
+    # --------------------------------------------------
+
     if intencion == "nombre":
-        nombre = texto.split()[-1].capitalize()
+        nombre = texto.lower().split()[-1].capitalize()
         memoria["nombre"] = nombre
         guardar_json(MEMORIA_ARCHIVO, memoria)
-        return {"respuesta": f"Mucho gusto {nombre} 😊"}
+        return {"respuesta": f"Encantado {nombre} 😊. Lo recordaré."}
+
+    # --------------------------------------------------
+    # GUSTOS
+    # --------------------------------------------------
 
     if intencion == "gusto":
-        gusto = texto.split("me gusta")[-1].strip()
-        memoria["gustos"].append(gusto)
-        guardar_json(MEMORIA_ARCHIVO, memoria)
-        return {"respuesta": f"Lo recordaré: te gusta {gusto}."}
+        gusto = texto.lower().split("me gusta")[-1].strip()
+        if gusto and gusto not in memoria["gustos"]:
+            memoria["gustos"].append(gusto)
+            guardar_json(MEMORIA_ARCHIVO, memoria)
+        return {"respuesta": f"Perfecto 👍 recordaré que te gusta {gusto}."}
+
+    # --------------------------------------------------
+    # MATEMÁTICAS
+    # --------------------------------------------------
 
     if intencion == "matematicas":
         try:
-            expr = texto.replace("resolver", "").replace("calcular", "")
-            return {"respuesta": str(sp.sympify(expr))}
-        except:
-            return {"respuesta": "No pude resolver eso."}
+            expr = (
+                texto.lower()
+                .replace("resolver", "")
+                .replace("calcular", "")
+                .replace("cuanto es", "")
+                .replace("cuánto es", "")
+                .replace("?", "")
+                .strip()
+            )
 
+            resultado = sp.sympify(expr)
+            return {"respuesta": f"El resultado es {resultado}."}
+
+        except Exception:
+            return {
+                "respuesta":
+                "No pude resolver esa operación 😕. Ejemplo válido: 2+2"
+            }
+
+    # --------------------------------------------------
     # 🧠 TODO LO DEMÁS → CEREBRO
-    respuesta = pensar(texto)
-    return {"respuesta": respuesta}
+    # --------------------------------------------------
+
+    try:
+        respuesta = pensar(texto)
+        return {"respuesta": respuesta}
+    except Exception as e:
+        print("[CEREBRO ERROR]", e)
+        return {
+            "respuesta":
+            "Tuve un problema al procesar eso 😕. Intenta formularlo de otra manera."
+        }

@@ -1,5 +1,6 @@
 # ======================================================
-# CEREBRO.PY — NÚCLEO DE PENSAMIENTO DE IATLAS
+# CEREBRO.PY — NÚCLEO DE PENSAMIENTO OPTIMIZADO v1.1
+# Compatible con Render + Aprendizaje Persistente
 # ======================================================
 
 import requests
@@ -7,181 +8,207 @@ import json
 import os
 import re
 
-# ------------------------------------------------------
-# ARCHIVOS
-# ------------------------------------------------------
+# ======================================================
+# RUTAS SEGURAS (Render-friendly)
+# ======================================================
 
-MEMORIA_APRENDIZAJE = "conocimiento_propio.json"
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
-# ------------------------------------------------------
-# MAPA SEMÁNTICO
-# ------------------------------------------------------
+MEMORIA_APRENDIZAJE = os.path.join(DATA_DIR, "conocimiento_propio.json")
+
+# ======================================================
+# MAPA SEMÁNTICO DE ENTIDADES
+# ======================================================
 
 MAPA_ENTIDADES = {
-    "inca": "Imperio inca",
-    "incas": "Imperio inca",
-    "maya": "Civilización maya",
-    "mayas": "Civilización maya",
+    "inca": "Imperio incaico",
+    "incas": "Imperio incaico",
+    "incaico": "Imperio incaico",
+
+    "maya": "Cultura maya",
+    "mayas": "Cultura maya",
+
+    "egipto": "Antiguo Egipto",
+    "egipcio": "Antiguo Egipto",
+    "egipcia": "Antiguo Egipto",
+
     "romano": "Imperio romano",
     "roma": "Imperio romano",
-    "egipto": "Antiguo Egipto",
-    "egipcios": "Antiguo Egipto",
+    "romanos": "Imperio romano",
+
     "grecia": "Antigua Grecia",
-    "griegos": "Antigua Grecia",
-    "edad media": "Edad Media",
-    "napoleon": "Napoleón Bonaparte"
+    "griego": "Antigua Grecia",
+
+    "edad media": "Edad Media"
 }
 
-# ------------------------------------------------------
-# UTILIDADES
-# ------------------------------------------------------
+# ======================================================
+# JSON SEGURO
+# ======================================================
 
 def cargar_json(path, default):
-    if not os.path.exists(path):
-        return default
     try:
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(default, f, ensure_ascii=False, indent=2)
+            return default
+
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+            contenido = f.read().strip()
+            return json.loads(contenido) if contenido else default
+
+    except Exception as e:
+        print(f"[CEREBRO JSON ERROR] {e}")
         return default
 
 
 def guardar_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception as e:
+        print(f"[CEREBRO WRITE ERROR] {e}")
 
-
-# ------------------------------------------------------
-# INTENCIÓN HUMANA
-# ------------------------------------------------------
+# ======================================================
+# INTENCIÓN SEMÁNTICA
+# ======================================================
 
 def detectar_intencion(texto):
     t = texto.lower()
 
-    if any(p in t for p in ["cuando", "cuándo", "año", "fecha"]):
+    if any(p in t for p in ["cuando", "año", "fecha"]):
         return "fecha"
 
-    if any(p in t for p in ["donde", "dónde", "ubicacion"]):
+    if any(p in t for p in ["donde", "ubicacion", "lugar"]):
         return "lugar"
 
-    if any(p in t for p in ["por que", "por qué", "causa"]):
+    if any(p in t for p in ["quien", "personaje", "emperador", "rey"]):
+        return "persona"
+
+    if any(p in t for p in ["causa", "porque", "razon"]):
         return "causa"
 
     if any(p in t for p in ["consecuencia", "resultado"]):
         return "consecuencia"
 
-    if any(p in t for p in ["quien", "quién"]):
-        return "persona"
-
-    if any(p in t for p in ["como", "cómo"]):
-        return "proceso"
-
     return "descripcion"
 
-
-# ------------------------------------------------------
+# ======================================================
 # EXTRACCIÓN DE ENTIDAD
-# ------------------------------------------------------
+# ======================================================
 
 def extraer_entidad(texto):
     t = texto.lower()
 
+    # 1️⃣ coincidencia directa
     for palabra, entidad in MAPA_ENTIDADES.items():
         if palabra in t:
             return entidad
 
-    # limpieza general
-    t = re.sub(r"[^\w\s]", "", t)
+    # 2️⃣ limpieza fuerte
+    t = re.sub(r"[¿?¡!]", "", t)
 
     basura = {
-        "historia","de","los","las","el","la","sobre",
-        "que","qué","cuando","cuándo","en","un","una"
+        "sabes", "historia", "de", "los", "las", "el", "la",
+        "sobre", "que", "en", "un", "una", "dime", "hablame",
+        "háblame", "cuentame", "cuéntame", "aparecieron"
     }
 
     palabras = [p for p in t.split() if p not in basura]
 
-    return " ".join(palabras)
+    return " ".join(palabras).strip()
 
-
-# ------------------------------------------------------
-# WIKIPEDIA
-# ------------------------------------------------------
+# ======================================================
+# WIKIPEDIA — BÚSQUEDA INTELIGENTE
+# ======================================================
 
 def buscar_wikipedia(entidad):
+    if not entidad:
+        return None
+
     try:
-        url = (
+        # 🔎 OpenSearch — encuentra el título real
+        search_url = (
             "https://es.wikipedia.org/w/api.php"
-            "?action=query"
-            "&list=search"
-            "&srsearch=" + entidad +
+            "?action=opensearch"
+            f"&search={entidad}"
+            "&limit=1"
             "&format=json"
         )
 
-        r = requests.get(url, timeout=6).json()
-        resultados = r.get("query", {}).get("search", [])
+        r = requests.get(search_url, timeout=6).json()
 
-        if not resultados:
+        if not r[1]:
             return None
 
-        titulo = resultados[0]["title"]
+        titulo_real = r[1][0]
 
-        resumen = requests.get(
+        resumen_url = (
             "https://es.wikipedia.org/api/rest_v1/page/summary/"
-            + titulo.replace(" ", "_"),
-            timeout=6
-        ).json()
+            + titulo_real.replace(" ", "_")
+        )
 
-        return resumen.get("extract")
+        resumen = requests.get(resumen_url, timeout=6).json()
 
-    except:
+        texto = resumen.get("extract")
+
+        if not texto:
+            return None
+
+        # ✂ limitar tamaño
+        texto = texto.replace("\n", " ")
+        return texto[:900] + "..."
+
+    except Exception as e:
+        print(f"[WIKI ERROR] {e}")
         return None
 
-
-# ------------------------------------------------------
-# CONSTRUCTOR DE RESPUESTA
-# ------------------------------------------------------
+# ======================================================
+# CONSTRUCCIÓN DE RESPUESTA
+# ======================================================
 
 def construir_respuesta(intencion, entidad, informacion):
 
     if not informacion:
-        return f"No encontré información confiable sobre {entidad}."
+        return (
+            f"No encontré información clara sobre «{entidad}».\n\n"
+            "Puedes intentar formularlo de otra forma 😊"
+        )
 
-    if intencion == "fecha":
-        return f"📅 Sobre las fechas de {entidad}:\n\n{informacion}"
+    iconos = {
+        "fecha": "📅",
+        "lugar": "📍",
+        "persona": "👤",
+        "causa": "⚔️",
+        "consecuencia": "📉",
+        "descripcion": "📖"
+    }
 
-    if intencion == "causa":
-        return f"⚠️ Las causas relacionadas con {entidad} fueron:\n\n{informacion}"
+    icono = iconos.get(intencion, "📚")
 
-    if intencion == "consecuencia":
-        return f"📉 Las consecuencias históricas de {entidad}:\n\n{informacion}"
+    return f"{icono} **{entidad}**\n\n{informacion}"
 
-    if intencion == "persona":
-        return f"👤 Información sobre {entidad}:\n\n{informacion}"
-
-    if intencion == "proceso":
-        return f"⚙️ Así se desarrolló {entidad}:\n\n{informacion}"
-
-    return informacion
-
-
-# ------------------------------------------------------
-# FUNCIÓN PRINCIPAL (PENSAR)
-# ------------------------------------------------------
+# ======================================================
+# FUNCIÓN PRINCIPAL (LA QUE IMPORTA MAIN.PY)
+# ======================================================
 
 def pensar(texto_usuario):
 
     memoria = cargar_json(MEMORIA_APRENDIZAJE, {})
 
-    intencion = detectar_intencion(texto_usuario)
     entidad = extraer_entidad(texto_usuario)
+    intencion = detectar_intencion(texto_usuario)
 
-    # ¿ya aprendido?
+    # 🧠 memoria local
     if entidad in memoria:
-        info = memoria[entidad]
+        informacion = memoria[entidad]
     else:
-        info = buscar_wikipedia(entidad)
-        if info:
-            memoria[entidad] = info
+        informacion = buscar_wikipedia(entidad)
+        if informacion:
+            memoria[entidad] = informacion
             guardar_json(MEMORIA_APRENDIZAJE, memoria)
 
-    return construir_respuesta(intencion, entidad, info)
+    return construir_respuesta(intencion, entidad, informacion)
