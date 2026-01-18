@@ -1,5 +1,5 @@
 # ======================================================
-# IATLAS — SISTEMA HÍBRIDO HISTÓRICO COMPLETO
+# IATLAS — CEREBRO HISTÓRICO HÍBRIDO REAL
 # ======================================================
 
 from fastapi import FastAPI
@@ -23,50 +23,58 @@ MEMORIA_ARCHIVO = "memoria.json"
 
 PERSONALIDAD = {
     "nombre": "IAtlas",
-    "descripcion": "IA personal con razonamiento histórico híbrido"
+    "descripcion": "IA histórica con razonamiento híbrido"
 }
 
 # ======================================================
-# MAPA SEMÁNTICO
+# MAPA SEMÁNTICO (CEREBRO)
 # ======================================================
 
 MAPA_HISTORICO = {
     "inca": "Imperio inca",
     "incas": "Imperio inca",
+    "imperio inca": "Imperio inca",
+
     "maya": "Civilización maya",
     "mayas": "Civilización maya",
+
     "romano": "Imperio romano",
     "roma": "Imperio romano",
+    "imperio romano": "Imperio romano",
+
     "egipto": "Antiguo Egipto",
     "egipcio": "Antiguo Egipto",
     "egipcia": "Antiguo Egipto",
+
     "grecia": "Antigua Grecia",
     "griego": "Antigua Grecia",
+
     "edad media": "Edad Media",
     "medieval": "Edad Media",
+
     "napoleon": "Napoleón Bonaparte",
-    "napoleón": "Napoleón Bonaparte",
+    "napoleón": "Napoleón Bonaparte"
 }
 
 # ======================================================
-# HISTORIA LOCAL
+# HISTORIA LOCAL (MEMORIA BASE)
 # ======================================================
 
 HISTORIA_LOCAL = {
     "primera guerra mundial": (
         "La Primera Guerra Mundial ocurrió entre 1914 y 1918.\n\n"
-        "Causas principales:\n"
+        "Causas:\n"
         "- Nacionalismo\n- Imperialismo\n- Militarismo\n- Sistema de alianzas\n\n"
         "Consecuencias:\n"
         "- Más de 16 millones de muertos\n"
         "- Caída de imperios\n"
         "- Tratado de Versalles\n"
-        "- Camino hacia la Segunda Guerra Mundial"
+        "- Origen de la Segunda Guerra Mundial"
     )
 }
 
 # ======================================================
-# MEMORIA
+# MEMORIA PERSONAL
 # ======================================================
 
 def cargar_memoria():
@@ -99,15 +107,15 @@ def detectar_intencion(texto: str):
         return "matematicas"
 
     if any(p in t for p in [
-        "inca", "inca", "maya", "mayas", "romano", "roma",
-        "egipto", "grecia", "edad", "imperio", "historia"
+        "inca", "maya", "romano", "egipto", "grecia",
+        "imperio", "civilizacion", "historia"
     ]):
         return "historia"
 
     return "general"
 
 # ======================================================
-# EXTRACCIÓN SEMÁNTICA
+# EXTRACCIÓN HUMANA DE TEMA
 # ======================================================
 
 def extraer_tema(texto: str):
@@ -118,7 +126,7 @@ def extraer_tema(texto: str):
         "historia","de","los","las","el","la",
         "sobre","acerca","puedes","explicame",
         "que","qué","en","un","una","por","favor",
-        "sabes"
+        "sabes","hablame","háblame"
     }
 
     palabras = [p for p in texto.split() if p not in basura]
@@ -127,15 +135,12 @@ def extraer_tema(texto: str):
     return MAPA_HISTORICO.get(tema, tema)
 
 # ======================================================
-# WIKIPEDIA
+# WIKIPEDIA REAL (SEARCH + SUMMARY)
 # ======================================================
 
 def buscar_wikipedia(tema: str):
-    if not tema:
-        return None
 
     try:
-        # 1️⃣ buscar título correcto
         search_url = (
             "https://es.wikipedia.org/w/api.php"
             "?action=query"
@@ -144,65 +149,63 @@ def buscar_wikipedia(tema: str):
             "&format=json"
         )
 
-        r = requests.get(search_url, timeout=6)
+        r = requests.get(search_url, timeout=8)
         data = r.json()
 
         resultados = data.get("query", {}).get("search", [])
-
         if not resultados:
             return None
 
         titulo = resultados[0]["title"]
 
-        # 2️⃣ pedir resumen real
         summary_url = (
             "https://es.wikipedia.org/api/rest_v1/page/summary/"
             + titulo.replace(" ", "_")
         )
 
-        r2 = requests.get(summary_url, timeout=6)
-
+        r2 = requests.get(summary_url, timeout=8)
         if r2.status_code != 200:
             return None
 
         return r2.json().get("extract")
 
-    except Exception as e:
+    except:
         return None
 
 # ======================================================
-# SISTEMA HÍBRIDO
+# CEREBRO HÍBRIDO FINAL
 # ======================================================
 
 def conocimiento_historico(texto: str):
 
     texto_l = texto.lower()
 
-    # 1️⃣ conocimiento local
+    # 1️⃣ memoria local
     for clave in HISTORIA_LOCAL:
         if clave in texto_l:
             return HISTORIA_LOCAL[clave]
 
-    # 2️⃣ semántica
+    # 2️⃣ interpretar tema humano
     tema = extraer_tema(texto)
 
-    # 3️⃣ wikipedia
-    info = wikipedia(tema)
+    # 3️⃣ buscar conocimiento externo
+    info = buscar_wikipedia(tema)
 
     if info:
         return info
 
-    # 4️⃣ razonamiento
+    # 4️⃣ razonamiento final
     return (
-        f"No encontré información directa sobre '{tema}', "
-        "pero puedo ayudarte a analizar su contexto histórico."
+        f"No encontré información directa sobre «{tema}».\n\n"
+        "Pero puedo ayudarte a analizar su contexto histórico, "
+        "época, ubicación y relevancia si quieres."
     )
 
 # ======================================================
 # FASTAPI
 # ======================================================
 
-app = FastAPI(title="IAtlas", version="2.0")
+app = FastAPI(title="IAtlas", version="3.0")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -219,7 +222,7 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas híbrido activo"}
+    return {"estado": "IAtlas con cerebro histórico activo"}
 
 @app.get("/chat")
 def chat_ui():
@@ -257,4 +260,4 @@ def chat(mensaje: Mensaje):
     if intencion == "historia":
         return {"respuesta": conocimiento_historico(texto)}
 
-    return {"respuesta": "Podemos profundizar más si quieres."}
+    return {"respuesta": "¿Sobre qué tema te gustaría aprender?"}
