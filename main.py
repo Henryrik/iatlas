@@ -1,12 +1,18 @@
+# =========================
+# IMPORTS
+# =========================
+
 from fastapi.staticfiles import StaticFiles
-import json
-import os
-import requests
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import sympy as sp
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+import json
+import os
+import re
+import requests
+import sympy as sp
 
 # =========================
 # CONFIGURACIÓN GENERAL
@@ -70,9 +76,14 @@ HISTORIA = {
 
 def cargar_memoria():
     if not os.path.exists(MEMORIA_ARCHIVO):
-        return {"nombre": None, "gustos": [], "notas": []}
+        return {
+            "nombre": None,
+            "gustos": [],
+            "notas": []
+        }
     with open(MEMORIA_ARCHIVO, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def guardar_memoria(memoria):
     with open(MEMORIA_ARCHIVO, "w", encoding="utf-8") as f:
@@ -100,7 +111,11 @@ def detectar_intencion(texto: str):
     if any(p in texto for p in ["quien eres", "qué eres"]):
         return "identidad"
 
-    if "historia" in texto or "guerra" in texto:
+    if any(p in texto for p in [
+        "historia", "imperio", "civilizacion", "civilización",
+        "antiguo", "edad", "inca", "maya", "romano", "egipto",
+        "guerra"
+    ]):
         return "historia"
 
     return "general"
@@ -112,12 +127,12 @@ def detectar_intencion(texto: str):
 def razonar_pregunta(texto: str):
     texto = texto.lower()
 
-    if "por qué" in texto:
+    if "por qué" in texto or "porque" in texto:
         return (
             "Para entenderlo mejor analicemos:\n"
-            "• contexto histórico\n"
-            "• causas principales\n"
-            "• consecuencias\n"
+            "• el contexto histórico\n"
+            "• las causas principales\n"
+            "• las consecuencias\n"
         )
 
     if "cómo" in texto:
@@ -150,11 +165,37 @@ def responder_historia_local(texto: str):
     return None
 
 # =========================
+# EXTRACCIÓN DE TEMA
+# =========================
+
+def extraer_tema_historico(texto: str):
+    texto = texto.lower()
+
+    basura = [
+        "sabes", "historia", "de", "los", "las", "el", "la",
+        "sobre", "acerca", "puedes", "explicarme",
+        "que", "qué", "en", "un", "una", "por", "favor"
+    ]
+
+    texto = re.sub(r"[^\w\s]", "", texto)
+    palabras = texto.split()
+
+    palabras_limpias = [p for p in palabras if p not in basura]
+
+    return " ".join(palabras_limpias)
+
+# =========================
 # WIKIPEDIA (CONOCIMIENTO TEMPORAL)
 # =========================
 
 def buscar_wikipedia(tema: str):
-    url = "https://es.wikipedia.org/api/rest_v1/page/summary/" + tema.replace(" ", "_")
+    if not tema:
+        return None
+
+    url = (
+        "https://es.wikipedia.org/api/rest_v1/page/summary/"
+        + tema.replace(" ", "_")
+    )
 
     try:
         r = requests.get(url, timeout=6)
@@ -178,15 +219,16 @@ def obtener_conocimiento_historico(texto: str):
     if local:
         return local
 
-    # 2️⃣ búsqueda externa
-    externo = buscar_wikipedia(texto)
+    # 2️⃣ extracción de tema
+    tema = extraer_tema_historico(texto)
+
+    # 3️⃣ búsqueda externa
+    externo = buscar_wikipedia(tema)
     if externo:
         return externo
 
-    return (
-        "No encontré información directa, "
-        "pero puedo ayudarte a analizar el contexto histórico."
-    )
+    # 4️⃣ razonamiento
+    return razonar_pregunta(texto)
 
 # =========================
 # FASTAPI
@@ -195,7 +237,7 @@ def obtener_conocimiento_historico(texto: str):
 app = FastAPI(
     title="IAtlas",
     description="IA híbrida histórica",
-    version="1.0"
+    version="1.1"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -222,6 +264,7 @@ def inicio():
 @app.get("/chat")
 def chat_ui():
     return FileResponse("static/chat.html")
+
 
 @app.post("/chat")
 def conversar(mensaje: Mensaje):
