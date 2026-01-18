@@ -13,50 +13,40 @@ HEADERS = {
 def extraer_entidad(texto):
     t = texto.lower()
     t = re.sub(r"[¿?¡!]", "", t)
-    # Limpieza masiva de ruido para encontrar el núcleo del tema
-    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "todo", "detallado", "como", "ocurrio", "disuelva", "desaparecio"]
+    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "todo", "detallado"]
     palabras = [p for p in t.split() if p not in basura]
     return " ".join(palabras).strip()
 
-def formatear_erudito(texto, entidad):
-    """Crea una estructura de reporte ejecutivo con puntos clave"""
-    # Limpieza de saltos de línea excesivos
-    texto_limpio = re.sub(r'\n+', '\n', texto).strip()
-    parrafos = [p for p in texto_limpio.split('.') if len(p.strip()) > 40]
+def formatear_respuesta(texto, entidad):
+    """Crea un resumen con puntos clave rápido y limpio"""
+    frases = [f.strip() for f in texto.split('.') if len(f.strip()) > 45]
     
-    # Construcción de Puntos Clave
-    puntos_clave = ""
-    for i, p in enumerate(parrafos[:6]):
-        puntos_clave += f"🔹 {p.strip()}.\n"
-
-    return f"🏛️ **ARCHIVO HISTÓRICO: {entidad.upper()}**\n\n" \
-           f"✅ **RESUMEN EJECUTIVO (Puntos Clave):**\n{puntos_clave}\n" \
-           f"📜 **CRÓNICA DETALLADA:**\n{texto_limpio[:4000]}..."
-
-def investigacion_profunda(tema):
-    """Navega por múltiples sitios para extraer conocimiento sin límites"""
-    try:
-        # Búsqueda ampliada para evitar bloqueos
-        consultas = [f"{tema} historia completa detallada", f"por que desaparecio {tema}", f"cronologia de {tema}"]
-        conocimiento_acumulado = ""
+    puntos = ""
+    for f in frases[:5]: # Solo los 5 puntos más importantes para ser rápidos
+        puntos += f"🔹 {f}.\n"
         
-        for q in consultas:
-            urls = list(search(q, num_results=3, lang="es"))
-            for url in urls:
-                try:
-                    r = requests.get(url, headers=HEADERS, timeout=15)
-                    if r.status_code == 200:
-                        contenido = trafilatura.extract(r.text, include_tables=True, include_comments=False)
-                        if contenido and len(contenido) > 500:
-                            conocimiento_acumulado += f"\n{contenido}\n"
-                            if len(conocimiento_acumulado) > 6000: break
-                except: continue
-            if len(conocimiento_acumulado) > 3000: break
-            
-        return conocimiento_acumulado if conocimiento_acumulado else None
+    return f"🏛️ **ARCHIVO IATLAS: {entidad.upper()}**\n\n" \
+           f"✅ **RESUMEN EJECUTIVO:**\n{puntos}\n" \
+           f"📜 **DETALLE:**\n{texto[:1200]}..."
+
+def buscar_rapido_y_profundo(tema):
+    """Busca en la mejor fuente disponible sin saturar el servidor"""
+    try:
+        query = f"{tema} historia detallada resumen"
+        # Reducimos a los 2 mejores resultados para mayor velocidad
+        urls = list(search(query, num_results=2, lang="es"))
+        
+        for url in urls:
+            try:
+                r = requests.get(url, headers=HEADERS, timeout=8) # Timeout más corto
+                if r.status_code == 200:
+                    contenido = trafilatura.extract(r.text, include_tables=True)
+                    if contenido and len(contenido) > 500:
+                        return contenido
+            except: continue
     except Exception as e:
-        print(f"Error en gran archivo: {e}")
-        return None
+        print(f"Error: {e}")
+    return None
 
 def pensar(texto_usuario):
     if os.path.exists(MEMORIA_APRENDIZAJE):
@@ -65,20 +55,18 @@ def pensar(texto_usuario):
     else: memoria = {}
 
     entidad = extraer_entidad(texto_usuario)
-    if not entidad or len(entidad) < 3: 
-        return "Hola Henry. Soy IAtlas, tu historiador personal. ¿Qué civilización quieres que investigue a fondo?"
+    if not entidad or len(entidad) < 3:
+        return "Hola Henry. ¿Qué imperio o evento histórico investigamos hoy?"
 
-    # Iniciamos búsqueda sin límites
-    info_total = investigacion_profunda(entidad)
+    # Intentar buscar información
+    info = buscar_rapido_y_profundo(entidad)
 
-    if info_total:
-        respuesta_formateada = formatear_erudito(info_total, entidad)
-        
-        # Guardar aprendizaje
-        memoria[entidad] = info_total[:2000]
+    if info:
+        respuesta = formatear_respuesta(info, entidad)
+        # Guardamos un resumen en memoria
+        memoria[entidad] = info[:1000]
         with open(MEMORIA_APRENDIZAJE, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
-            
-        return respuesta_formateada
+        return respuesta
     
-    return f"Henry, he rastreado los archivos sobre '{entidad}' pero los sitios están inaccesibles ahora. Intenta con un término más general como 'Imperio Inca' o 'Antiguo Egipto'."
+    return f"Henry, la información sobre '{entidad}' es difícil de acceder ahora mismo. ¿Podrías intentar con un nombre más común (ej: 'Cultura Inca')?"
