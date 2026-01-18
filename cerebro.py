@@ -1,5 +1,5 @@
 # ======================================================
-# CEREBRO.PY — NÚCLEO COGNITIVO DEFINITIVO
+# CEREBRO.PY — VERSIÓN DEFINITIVA ESTABLE
 # ======================================================
 
 import requests
@@ -11,7 +11,29 @@ from urllib.parse import quote
 MEMORIA_APRENDIZAJE = "data/conocimiento_propio.json"
 
 # ======================================================
-# UTILIDADES
+# MAPA REAL DE ENTIDADES WIKIPEDIA
+# ======================================================
+
+ENTIDADES = {
+    "inca": "Imperio inca",
+    "incas": "Imperio inca",
+    "imperio inca": "Imperio inca",
+    "incaico": "Imperio inca",
+
+    "maya": "Civilización maya",
+    "mayas": "Civilización maya",
+    "cultura maya": "Civilización maya",
+
+    "romano": "Imperio romano",
+    "roma": "Imperio romano",
+
+    "egipto": "Antiguo Egipto",
+    "egipcio": "Antiguo Egipto",
+    "egipto antiguo": "Antiguo Egipto",
+}
+
+# ======================================================
+# JSON
 # ======================================================
 
 def cargar_json(path, default):
@@ -30,75 +52,52 @@ def guardar_json(path, data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 # ======================================================
-# SEMÁNTICA
+# EXTRACCIÓN REAL DE ENTIDAD
 # ======================================================
 
-def limpiar_texto(texto):
-    texto = texto.lower()
-    texto = re.sub(r"[¿?¡!]", "", texto)
+def extraer_entidad(texto):
+    t = texto.lower()
 
-    basura = [
-        "sabes", "sobre", "historia", "de", "los", "las",
-        "el", "la", "que", "quien", "cuentame",
-        "háblame", "hablame", "dime"
-    ]
+    # buscar coincidencias reales
+    for clave in ENTIDADES:
+        if clave in t:
+            return ENTIDADES[clave]
 
-    for b in basura:
-        texto = re.sub(rf"\b{b}\b", "", texto)
-
-    return " ".join(texto.split())
-
+    # respaldo
+    palabras = re.findall(r"[a-záéíóúñ]+", t)
+    return " ".join(palabras[-3:])
 
 # ======================================================
-# BUSCADOR REAL DE WIKIPEDIA
+# WIKIPEDIA REAL
 # ======================================================
 
-def buscar_wikipedia(entidad):
+def buscar_wikipedia(titulo):
     try:
-        # 🔎 Paso 1: preguntarle a Wikipedia el título correcto
-        search_url = (
-            "https://es.wikipedia.org/w/api.php"
-            "?action=opensearch"
-            f"&search={quote(entidad)}"
-            "&limit=1&format=json"
-        )
-
-        resultado = requests.get(search_url, timeout=8).json()
-
-        if not resultado[1]:
-            return None
-
-        titulo_real = resultado[1][0]
-
-        # 📘 Paso 2: pedir resumen oficial
-        summary_url = (
+        url = (
             "https://es.wikipedia.org/api/rest_v1/page/summary/"
-            + quote(titulo_real)
+            + quote(titulo.replace(" ", "_"))
         )
 
-        r = requests.get(summary_url, timeout=8)
+        r = requests.get(url, timeout=8)
 
         if r.status_code != 200:
             return None
 
         return r.json().get("extract")
 
-    except Exception as e:
-        print("ERROR WIKI:", e)
+    except:
         return None
 
-
 # ======================================================
-# RESPUESTA INTELIGENTE
+# CEREBRO
 # ======================================================
 
 def pensar(texto_usuario):
 
     memoria = cargar_json(MEMORIA_APRENDIZAJE, {})
 
-    entidad = limpiar_texto(texto_usuario)
+    entidad = extraer_entidad(texto_usuario)
 
-    # 🧠 ya aprendido
     if entidad in memoria:
         return "🧠 (memoria)\n\n" + memoria[entidad]
 
@@ -109,11 +108,4 @@ def pensar(texto_usuario):
         guardar_json(MEMORIA_APRENDIZAJE, memoria)
         return info
 
-    return (
-        f"No pude encontrar información clara sobre «{entidad}».\n\n"
-        "Puedes intentar por ejemplo:\n"
-        "• imperio inca\n"
-        "• civilización maya\n"
-        "• imperio romano\n"
-        "• antiguo egipto"
-    )
+    return f"No encontré información sobre «{entidad}»."
