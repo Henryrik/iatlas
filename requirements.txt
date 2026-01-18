@@ -4,3 +4,5 @@ requests
 googlesearch-python
 trafilatura
 sympy
+lxml
+beautifulsoup4
