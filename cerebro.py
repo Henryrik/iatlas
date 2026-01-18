@@ -6,7 +6,6 @@ DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 MEMORIA_APRENDIZAJE = os.path.join(DATA_DIR, "conocimiento_propio.json")
 
-# 🛡️ Identificación para evitar bloqueos
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
@@ -14,67 +13,65 @@ HEADERS = {
 def extraer_entidad(texto):
     t = texto.lower()
     t = re.sub(r"[¿?¡!]", "", t)
-    # Mejoramos la limpieza para detectar cuando el usuario pide "más"
-    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "cuéntame", "extiéndete"]
+    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame", "extiendete", "mas", "cuéntame", "extiéndete", "todo", "detallado"]
     palabras = [p for p in t.split() if p not in basura]
     return " ".join(palabras).strip()
 
-def buscar_en_internet(tema, extensa=False):
-    """Explora la web y extrae contenido mucho más amplio"""
+def formatear_respuesta_total(texto, entidad):
+    """Estructura una respuesta de nivel enciclopédico"""
+    # Dividimos en párrafos para detectar puntos clave de forma natural
+    parrafos = [p for p in texto.split('\n') if len(p.strip()) > 50]
+    
+    resumen_puntos = ""
+    for i, p in enumerate(parrafos[:8]): # Extraemos hasta 8 puntos clave del contenido real
+        resumen_puntos += f"🔹 {p[:150]}...\n"
+
+    return f"🏛️ **ENCICLOPEDIA IATLAS: {entidad.upper()}**\n\n" \
+           f"🧐 **ANÁLISIS DE PUNTOS CLAVE:**\n{resumen_puntos}\n" \
+           f"📜 **CRÓNICA COMPLETA:**\n{texto}"
+
+def buscar_en_internet_sin_limites(tema):
+    """Busca en múltiples fuentes y combina el conocimiento"""
     try:
-        # Si el usuario pide extenderse, usamos palabras clave más potentes
-        query = f"{tema} historia completa detalles" if extensa else f"{tema} historia resumen"
-        urls = list(search(query, num_results=3, lang="es"))
+        # Buscamos fuentes académicas y detalladas
+        query = f"{tema} historia profunda cronología completa detalles"
+        urls = list(search(query, num_results=5, lang="es"))
         
+        conocimiento_acumulado = ""
         for url in urls:
-            r = requests.get(url, headers=HEADERS, timeout=12)
+            r = requests.get(url, headers=HEADERS, timeout=15)
             if r.status_code == 200:
-                # Extraemos con formato y tablas si es posible
-                texto = trafilatura.extract(r.text, include_comments=False, include_tables=True)
-                if texto and len(texto) > 400:
-                    # Si es extensa, devolvemos hasta 3000 caracteres, si no, 800
-                    limite = 3000 if extensa else 800
-                    return f"{texto[:limite]}...\n\n(Fuente: {url})"
+                # Extraemos TODO el texto disponible sin límites estrictos
+                texto = trafilatura.extract(r.text, include_comments=False, include_tables=True, include_links=False)
+                if texto and len(texto) > 600:
+                    conocimiento_acumulado += f"\n--- Fuente: {url} ---\n{texto}\n"
+                    if len(conocimiento_acumulado) > 8000: break # Límite de seguridad para el servidor
+        
+        return conocimiento_acumulado if conocimiento_acumulado else None
     except Exception as e:
-        print(f"Error de exploración: {e}")
-    return None
+        print(f"Error en investigación profunda: {e}")
+        return None
 
 def pensar(texto_usuario):
-    # Cargar memoria local
     if os.path.exists(MEMORIA_APRENDIZAJE):
         with open(MEMORIA_APRENDIZAJE, "r", encoding="utf-8") as f:
             memoria = json.load(f)
     else: memoria = {}
 
-    # Detectar si el usuario quiere más información
-    quiere_mas = any(p in texto_usuario.lower() for p in ["mas", "extiendete", "detalle", "profundiza"])
     entidad = extraer_entidad(texto_usuario)
-    
-    if not entidad: return "Hola Henry, ¿sobre qué imperio o cultura quieres profundizar hoy?"
+    if not entidad: return "Hola Henry. El conocimiento no tiene límites. ¿Qué civilización o evento exploramos hoy?"
 
-    # Lógica de búsqueda profunda
-    if entidad in memoria and not quiere_mas:
-        respuesta = memoria[entidad]
-    else:
-        # Intentar Wikipedia primero (solo si no es un pedido de extensión profunda)
-        respuesta = None
-        if not quiere_mas:
-            try:
-                wiki_url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{entidad.replace(' ', '_')}"
-                res = requests.get(wiki_url, headers=HEADERS, timeout=7).json()
-                respuesta = res.get("extract")
-            except: respuesta = None
+    # Siempre busca información fresca si el usuario pide "todo" o detalle
+    info_texto = buscar_en_internet_sin_limites(entidad)
 
-        # 🚀 Si Wikipedia no basta o piden "más", navegar por la web real de forma extensa
-        if not respuesta or quiere_mas:
-            respuesta = buscar_en_internet(entidad, extensa=quiere_mas)
-
-    if respuesta:
-        memoria[entidad] = respuesta
+    if info_texto:
+        respuesta_final = formatear_respuesta_total(info_texto, entidad)
+        
+        # Guardamos en memoria para aprendizaje continuo
+        memoria[entidad] = info_texto[:5000] # Guardamos un fragmento grande en JSON
         with open(MEMORIA_APRENDIZAJE, "w", encoding="utf-8") as f:
             json.dump(memoria, f, ensure_ascii=False, indent=2)
         
-        titulo = f"📚 INVESTIGACIÓN DETALLADA: {entidad.upper()}" if quiere_mas else f"🌐 CONSULTA: {entidad.upper()}"
-        return f"**{titulo}**\n\n{respuesta}"
+        return respuesta_final
     
-    return f"Henry, busqué información extensa sobre '{entidad}', pero los sitios están protegidos. ¿Intentamos con otro tema?"
+    return f"Henry, la historia de '{entidad}' es vasta, pero los archivos digitales están protegidos en este momento. Intentemos con un término relacionado."
