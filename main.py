@@ -1,6 +1,6 @@
 # ======================================================
-# IATLAS — CEREBRO HISTÓRICO HÍBRIDO v4.0
-# Aprendizaje + Memoria + Contexto
+# IATLAS — CEREBRO HISTÓRICO HÍBRIDO v4.1
+# Estable para Render + Aprendizaje Persistente
 # ======================================================
 
 from fastapi import FastAPI
@@ -19,8 +19,11 @@ import sympy as sp
 # CONFIGURACIÓN
 # ======================================================
 
-MEMORIA_ARCHIVO = "memoria.json"
-CONOCIMIENTO_ARCHIVO = "conocimiento_propio.json"
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+
+MEMORIA_ARCHIVO = os.path.join(DATA_DIR, "memoria.json")
+CONOCIMIENTO_ARCHIVO = os.path.join(DATA_DIR, "conocimiento_propio.json")
 
 CONTEXTO = {"ultimo_tema": None}
 
@@ -42,21 +45,33 @@ MAPA_HISTORICO = {
 }
 
 # ======================================================
-# UTILIDADES
+# JSON SEGURO PARA RENDER
 # ======================================================
 
 def cargar_json(path, default):
-    if not os.path.exists(path):
-        return default
     try:
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(default, f, ensure_ascii=False, indent=2)
+            return default
+
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+            contenido = f.read().strip()
+            return json.loads(contenido) if contenido else default
+
+    except Exception as e:
+        print(f"[JSON ERROR] {path}: {e}")
         return default
 
+
 def guardar_json(path, data):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        temp = path + ".tmp"
+        with open(temp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(temp, path)
+    except Exception as e:
+        print(f"[JSON WRITE ERROR] {path}: {e}")
 
 # ======================================================
 # INTENCIÓN
@@ -97,14 +112,16 @@ def extraer_tema(texto: str):
 
     t = re.sub(r"[^\w\s]", "", t)
 
-    basura = {
-        "historia","de","los","las","el","la",
-        "sobre","acerca","que","qué","por","favor",
-        "háblame","hablame","quien","fue"
-    }
+    stopwords = [
+        "historia","de","los","las","el","la","sobre","acerca",
+        "que","qué","por","favor","háblame","hablame",
+        "quien","quién","fue","era","sabes","cuentame","dime"
+    ]
 
-    palabras = [p for p in t.split() if p not in basura]
-    tema = " ".join(palabras)
+    for w in stopwords:
+        t = re.sub(rf"\b{w}\b", "", t)
+
+    tema = " ".join(t.split())
 
     tema = MAPA_HISTORICO.get(tema, tema)
 
@@ -124,8 +141,10 @@ def buscar_wikipedia(tema):
             "?action=query&list=search&srsearch="
             + tema + "&format=json"
         )
+
         r = requests.get(url, timeout=8).json()
         resultados = r.get("query", {}).get("search", [])
+
         if not resultados:
             return None
 
@@ -138,16 +157,15 @@ def buscar_wikipedia(tema):
         ).json()
 
         return resumen.get("extract")
+
     except:
         return None
 
 # ======================================================
-# RESUMEN INTELIGENTE
+# RESUMEN
 # ======================================================
 
 def resumir(texto, max_len=500):
-    if not texto:
-        return None
     texto = texto.replace("\n", " ")
     return texto[:max_len] + "..."
 
@@ -161,11 +179,10 @@ def conocimiento_historico(texto_usuario):
 
     tema = extraer_tema(texto_usuario)
 
-    # 1️⃣ Ya aprendido
+    # 🧠 ya aprendido
     if tema in conocimiento:
         return f"🧠 (memoria)\n\n{conocimiento[tema]}"
 
-    # 2️⃣ Buscar nuevo
     info = buscar_wikipedia(tema)
 
     if info:
@@ -183,7 +200,7 @@ def conocimiento_historico(texto_usuario):
 # FASTAPI
 # ======================================================
 
-app = FastAPI(title="IAtlas", version="4.0")
+app = FastAPI(title="IAtlas", version="4.1")
 
 if not os.path.exists("static"):
     os.makedirs("static")
@@ -222,7 +239,7 @@ def chat(m: Mensaje):
         return {"respuesta": f"Mucho gusto {nombre} 😊"}
 
     if intencion == "gusto":
-        gusto = texto.split("me gusta")[-1]
+        gusto = texto.split("me gusta")[-1].strip()
         memoria["gustos"].append(gusto)
         guardar_json(MEMORIA_ARCHIVO, memoria)
         return {"respuesta": f"Lo recordaré: te gusta {gusto}."}
