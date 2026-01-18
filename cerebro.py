@@ -1,111 +1,70 @@
-# ======================================================
-# CEREBRO.PY — VERSIÓN DEFINITIVA ESTABLE
-# ======================================================
+import requests, json, os, re
+from googlesearch import search
+import trafilatura
 
-import requests
-import json
-import os
-import re
-from urllib.parse import quote
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+MEMORIA_APRENDIZAJE = os.path.join(DATA_DIR, "conocimiento_propio.json")
 
-MEMORIA_APRENDIZAJE = "data/conocimiento_propio.json"
-
-# ======================================================
-# MAPA REAL DE ENTIDADES WIKIPEDIA
-# ======================================================
-
-ENTIDADES = {
-    "inca": "Imperio inca",
-    "incas": "Imperio inca",
-    "imperio inca": "Imperio inca",
-    "incaico": "Imperio inca",
-
-    "maya": "Civilización maya",
-    "mayas": "Civilización maya",
-    "cultura maya": "Civilización maya",
-
-    "romano": "Imperio romano",
-    "roma": "Imperio romano",
-
-    "egipto": "Antiguo Egipto",
-    "egipcio": "Antiguo Egipto",
-    "egipto antiguo": "Antiguo Egipto",
+# 🛡️ ESTO ES LO QUE FALTA: La identificación para que no nos bloqueen
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-
-# ======================================================
-# JSON
-# ======================================================
-
-def cargar_json(path, default):
-    if not os.path.exists(path):
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return default
-
-
-def guardar_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-# ======================================================
-# EXTRACCIÓN REAL DE ENTIDAD
-# ======================================================
 
 def extraer_entidad(texto):
     t = texto.lower()
+    t = re.sub(r"[¿?¡!]", "", t)
+    # Limpiamos palabras que confunden al buscador
+    basura = ["sabes", "historia", "de", "los", "las", "el", "la", "sobre", "que", "dime", "cuentame"]
+    palabras = [p for p in t.split() if p not in basura]
+    return " ".join(palabras).strip()
 
-    # buscar coincidencias reales
-    for clave in ENTIDADES:
-        if clave in t:
-            return ENTIDADES[clave]
-
-    # respaldo
-    palabras = re.findall(r"[a-záéíóúñ]+", t)
-    return " ".join(palabras[-3:])
-
-# ======================================================
-# WIKIPEDIA REAL
-# ======================================================
-
-def buscar_wikipedia(titulo):
+def buscar_en_internet(tema):
+    """Explora la web usando una identidad humana para evitar bloqueos"""
     try:
-        url = (
-            "https://es.wikipedia.org/api/rest_v1/page/summary/"
-            + quote(titulo.replace(" ", "_"))
-        )
-
-        r = requests.get(url, timeout=8)
-
-        if r.status_code != 200:
-            return None
-
-        return r.json().get("extract")
-
-    except:
-        return None
-
-# ======================================================
-# CEREBRO
-# ======================================================
+        # Buscamos en Google
+        query = f"{tema} historia resumen"
+        urls = list(search(query, num_results=3, lang="es"))
+        
+        for url in urls:
+            # Usamos los HEADERS de identificación aquí
+            r = requests.get(url, headers=HEADERS, timeout=10)
+            if r.status_code == 200:
+                texto = trafilatura.extract(r.text)
+                if texto and len(texto) > 300:
+                    return f"{texto[:800]}...\n\n(Fuente: {url})"
+    except Exception as e:
+        print(f"Error de exploración: {e}")
+    return None
 
 def pensar(texto_usuario):
-
-    memoria = cargar_json(MEMORIA_APRENDIZAJE, {})
+    # Cargar memoria local
+    if os.path.exists(MEMORIA_APRENDIZAJE):
+        with open(MEMORIA_APRENDIZAJE, "r", encoding="utf-8") as f:
+            memoria = json.load(f)
+    else: memoria = {}
 
     entidad = extraer_entidad(texto_usuario)
+    if not entidad: return "Hola Henry, ¿qué tema investigamos hoy?"
 
     if entidad in memoria:
-        return "🧠 (memoria)\n\n" + memoria[entidad]
+        respuesta = memoria[entidad]
+    else:
+        # 1. Intentar Wikipedia con identificación
+        try:
+            wiki_url = f"https://es.wikipedia.org/api/rest_v1/page/summary/{entidad.replace(' ', '_')}"
+            res = requests.get(wiki_url, headers=HEADERS, timeout=7).json()
+            respuesta = res.get("extract")
+        except: respuesta = None
 
-    info = buscar_wikipedia(entidad)
+        # 2. Si Wikipedia falla, navegar por la web real
+        if not respuesta:
+            respuesta = buscar_en_internet(entidad)
 
-    if info:
-        memoria[entidad] = info
-        guardar_json(MEMORIA_APRENDIZAJE, memoria)
-        return info
-
-    return f"No encontré información sobre «{entidad}»."
+    if respuesta:
+        memoria[entidad] = respuesta
+        with open(MEMORIA_APRENDIZAJE, "w", encoding="utf-8") as f:
+            json.dump(memoria, f, ensure_ascii=False, indent=2)
+        return f"🌐 **Consulta para: {entidad.upper()}**\n\n{respuesta}"
+    
+    return f"Lo siento, Henry. Busqué en la web pero los sitios están protegiendo su información. Intenta con 'Incas' o 'Cultura Maya'."
