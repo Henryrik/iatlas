@@ -2,3 +2,5 @@ fastapi
 uvicorn
 sympy
 requests
+googlesearch-python
+trafilatura
