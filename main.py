@@ -8,10 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+import requests
+import re
 import json
 import os
-import re
-import requests
 import sympy as sp
 
 # =========================
@@ -32,26 +32,15 @@ PERSONALIDAD = {
 }
 
 # =========================
-# CONOCIMIENTO LOCAL (Nivel 4)
+# CONOCIMIENTO LOCAL
 # =========================
 
 HISTORIA = {
     "primera guerra mundial": {
         "fecha": "1914–1918",
         "bandos": {
-            "aliados": [
-                "Francia",
-                "Reino Unido",
-                "Rusia",
-                "Estados Unidos",
-                "Italia"
-            ],
-            "potencias centrales": [
-                "Alemania",
-                "Imperio Austrohúngaro",
-                "Imperio Otomano",
-                "Bulgaria"
-            ]
+            "aliados": ["Francia", "Reino Unido", "Rusia", "Estados Unidos", "Italia"],
+            "potencias centrales": ["Alemania", "Imperio Austrohúngaro", "Imperio Otomano", "Bulgaria"]
         },
         "causas": [
             "Nacionalismo",
@@ -64,33 +53,49 @@ HISTORIA = {
             "Más de 16 millones de muertos",
             "Caída de imperios europeos",
             "Tratado de Versalles",
-            "Inestabilidad política en Europa",
             "Camino hacia la Segunda Guerra Mundial"
         ]
     }
 }
 
 # =========================
-# MEMORIA PERSONAL
+# MAPA SEMÁNTICO HISTÓRICO
+# =========================
+
+MAPA_HISTORICO = {
+    "inca": "Imperio inca",
+    "incas": "Imperio inca",
+    "maya": "Civilización maya",
+    "mayas": "Civilización maya",
+    "romano": "Imperio romano",
+    "roma": "Imperio romano",
+    "egipto": "Antiguo Egipto",
+    "egipcio": "Antiguo Egipto",
+    "egipcia": "Antiguo Egipto",
+    "grecia": "Antigua Grecia",
+    "griego": "Antigua Grecia",
+    "edad media": "Edad Media",
+    "medieval": "Edad Media",
+    "napoleon": "Napoleón Bonaparte",
+    "napoleón": "Napoleón Bonaparte",
+}
+
+# =========================
+# MEMORIA
 # =========================
 
 def cargar_memoria():
     if not os.path.exists(MEMORIA_ARCHIVO):
-        return {
-            "nombre": None,
-            "gustos": [],
-            "notas": []
-        }
+        return {"nombre": None, "gustos": [], "notas": []}
     with open(MEMORIA_ARCHIVO, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 def guardar_memoria(memoria):
     with open(MEMORIA_ARCHIVO, "w", encoding="utf-8") as f:
         json.dump(memoria, f, ensure_ascii=False, indent=2)
 
 # =========================
-# DETECTOR DE INTENCIONES
+# DETECTOR DE INTENCIÓN
 # =========================
 
 def detectar_intencion(texto: str):
@@ -98,197 +103,82 @@ def detectar_intencion(texto: str):
 
     if any(p in texto for p in ["hola", "buenas", "hey"]):
         return "saludo"
-
     if "me llamo" in texto:
-        return "aprender_nombre"
-
+        return "nombre"
     if "me gusta" in texto:
-        return "aprender_gusto"
-
+        return "gusto"
     if any(p in texto for p in ["resolver", "calcular"]):
         return "matematicas"
-
-    if any(p in texto for p in ["quien eres", "qué eres"]):
-        return "identidad"
-
-    if any(p in texto for p in [
-        "historia", "imperio", "civilizacion", "civilización",
-        "antiguo", "edad", "inca", "maya", "romano", "egipto",
-        "guerra"
-    ]):
+    if any(p in texto for p in ["historia", "imperio", "civilizacion", "inca", "maya", "romano", "egipto"]):
         return "historia"
 
     return "general"
 
 # =========================
-# NIVEL 3 – RAZONAMIENTO
+# RAZONAMIENTO NIVEL 3
 # =========================
 
 def razonar_pregunta(texto: str):
-    texto = texto.lower()
-
-    if "por qué" in texto or "porque" in texto:
-        return (
-            "Para entenderlo mejor analicemos:\n"
-            "• el contexto histórico\n"
-            "• las causas principales\n"
-            "• las consecuencias\n"
-        )
-
+    if "por qué" in texto:
+        return "Analicemos el contexto, las causas y las consecuencias."
     if "cómo" in texto:
-        return (
-            "Podemos explicarlo paso a paso:\n"
-            "1️⃣ Situación inicial\n"
-            "2️⃣ Desarrollo\n"
-            "3️⃣ Resultado"
-        )
-
+        return "Te explico el proceso paso a paso."
     return "Podemos profundizar más si quieres."
-
-# =========================
-# HISTORIA LOCAL
-# =========================
-
-def responder_historia_local(texto: str):
-    texto = texto.lower()
-
-    if "primera guerra mundial" in texto:
-        d = HISTORIA["primera guerra mundial"]
-        return (
-            f"La Primera Guerra Mundial ocurrió entre {d['fecha']}.\n\n"
-            f"Aliados: {', '.join(d['bandos']['aliados'])}\n"
-            f"Potencias Centrales: {', '.join(d['bandos']['potencias centrales'])}\n\n"
-            f"Causas:\n- " + "\n- ".join(d["causas"]) + "\n\n"
-            f"Consecuencias:\n- " + "\n- ".join(d["consecuencias"])
-        )
-
-    return None
 
 # =========================
 # EXTRACCIÓN DE TEMA
 # =========================
 
-def extraer_tema_historico(texto: str):
+def extraer_tema(texto: str):
     texto = texto.lower()
-
     basura = [
-        "sabes", "historia", "de", "los", "las", "el", "la",
-        "sobre", "acerca", "puedes", "explicarme",
-        "que", "qué", "en", "un", "una", "por", "favor"
+        "sabes","historia","de","los","las","el","la",
+        "sobre","acerca","puedes","explicarme",
+        "que","qué","en","un","una","por","favor"
     ]
-
     texto = re.sub(r"[^\w\s]", "", texto)
-    palabras = texto.split()
-
-    palabras_limpias = [p for p in palabras if p not in basura]
-
-    return " ".join(palabras_limpias)
-
-def detectar_intencion_semantica(texto: str):
-    texto = texto.lower()
-
-    if any(p in texto for p in ["quién", "quien"]):
-        return "persona"
-
-    if any(p in texto for p in ["cuándo", "cuando"]):
-        return "fecha"
-
-    if any(p in texto for p in ["dónde", "donde"]):
-        return "lugar"
-
-    if any(p in texto for p in ["por qué", "porque", "por que"]):
-        return "causa"
-
-    if any(p in texto for p in ["consecuencia", "efecto"]):
-        return "consecuencias"
-
-    if any(p in texto for p in ["cómo", "como"]):
-        return "proceso"
-
-    return "descripcion"
-
-def interpretar_pregunta(texto: str):
-    intencion = detectar_intencion_semantica(texto)
-    entidad = extraer_tema_historico(texto)
-
-    return {
-        "intencion": intencion,
-        "entidad": entidad
-    }
+    palabras = [p for p in texto.split() if p not in basura]
+    return " ".join(palabras)
 
 # =========================
-# WIKIPEDIA (CONOCIMIENTO TEMPORAL)
+# WIKIPEDIA
 # =========================
 
 def buscar_wikipedia(tema: str):
     if not tema:
         return None
 
-    url = (
-        "https://es.wikipedia.org/api/rest_v1/page/summary/"
-        + tema.replace(" ", "_")
-    )
+    if tema in MAPA_HISTORICO:
+        tema = MAPA_HISTORICO[tema]
+
+    url = "https://es.wikipedia.org/api/rest_v1/page/summary/" + tema.replace(" ", "_")
 
     try:
         r = requests.get(url, timeout=6)
         if r.status_code != 200:
             return None
-
-        data = r.json()
-        return data.get("extract")
-
+        return r.json().get("extract")
     except:
         return None
 
 # =========================
-# SISTEMA HÍBRIDO
+# SISTEMA HÍBRIDO FINAL
 # =========================
 
 def obtener_conocimiento_historico(texto: str):
 
-    interpretacion = interpretar_pregunta(texto)
-    intencion = interpretacion["intencion"]
-    entidad = interpretacion["entidad"]
+    # primero local
+    local = HISTORIA.get(texto.lower())
+    if local:
+        return local
 
-    # 1️⃣ buscar datos
-    informacion = buscar_wikipedia(entidad)
+    tema = extraer_tema(texto)
+    info = buscar_wikipedia(tema)
 
-    if not informacion:
-        return "No encontré información histórica sobre ese tema."
+    if info:
+        return info
 
-    # 2️⃣ responder según intención
-    if intencion == "causa":
-        return (
-            f"Las principales causas relacionadas con {entidad} fueron:\n\n"
-            f"{informacion}"
-        )
-
-    if intencion == "consecuencias":
-        return (
-            f"Las principales consecuencias históricas de {entidad} incluyen:\n\n"
-            f"{informacion}"
-        )
-
-    if intencion == "fecha":
-        return (
-            f"En cuanto a fechas importantes sobre {entidad}:\n\n"
-            f"{informacion}"
-        )
-
-    if intencion == "persona":
-        return (
-            f"{entidad.title()} fue una figura histórica relevante.\n\n"
-            f"{informacion}"
-        )
-
-    if intencion == "proceso":
-        return (
-            f"El proceso histórico relacionado con {entidad} se desarrolló así:\n\n"
-            f"{informacion}"
-        )
-
-    # descripción general
-    return informacion
+    return "No encontré información directa, pero puedo ayudarte a analizar el contexto histórico."
 
 # =========================
 # FASTAPI
@@ -297,7 +187,7 @@ def obtener_conocimiento_historico(texto: str):
 app = FastAPI(
     title="IAtlas",
     description="IA híbrida histórica",
-    version="1.1"
+    version="1.2"
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -315,7 +205,7 @@ class Mensaje(BaseModel):
 
 @app.get("/")
 def inicio():
-    return {"estado": "IAtlas híbrido activo"}
+    return {"estado": "IAtlas híbrido operativo"}
 
 # =========================
 # CHAT
@@ -325,9 +215,9 @@ def inicio():
 def chat_ui():
     return FileResponse("static/chat.html")
 
-
 @app.post("/chat")
 def conversar(mensaje: Mensaje):
+
     texto = mensaje.texto.strip()
     memoria = cargar_memoria()
     intencion = detectar_intencion(texto)
@@ -335,17 +225,17 @@ def conversar(mensaje: Mensaje):
     if intencion == "saludo":
         return {"respuesta": f"Hola 👋 Soy {PERSONALIDAD['nombre']} 😊"}
 
-    if intencion == "aprender_nombre":
-        nombre = texto.lower().split("me llamo")[-1].strip().capitalize()
+    if intencion == "nombre":
+        nombre = texto.split("me llamo")[-1].strip().capitalize()
         memoria["nombre"] = nombre
         guardar_memoria(memoria)
-        return {"respuesta": f"Encantado {nombre}, lo recordaré 😊"}
+        return {"respuesta": f"Encantado {nombre} 😊"}
 
-    if intencion == "aprender_gusto":
-        gusto = texto.lower().split("me gusta")[-1].strip()
+    if intencion == "gusto":
+        gusto = texto.split("me gusta")[-1].strip()
         memoria["gustos"].append(gusto)
         guardar_memoria(memoria)
-        return {"respuesta": f"Entendido 😊 Te gusta {gusto}."}
+        return {"respuesta": f"Perfecto 😊 recordaré que te gusta {gusto}."}
 
     if intencion == "matematicas":
         try:
