@@ -184,6 +184,38 @@ def extraer_tema_historico(texto: str):
 
     return " ".join(palabras_limpias)
 
+def detectar_intencion_semantica(texto: str):
+    texto = texto.lower()
+
+    if any(p in texto for p in ["quién", "quien"]):
+        return "persona"
+
+    if any(p in texto for p in ["cuándo", "cuando"]):
+        return "fecha"
+
+    if any(p in texto for p in ["dónde", "donde"]):
+        return "lugar"
+
+    if any(p in texto for p in ["por qué", "porque", "por que"]):
+        return "causa"
+
+    if any(p in texto for p in ["consecuencia", "efecto"]):
+        return "consecuencias"
+
+    if any(p in texto for p in ["cómo", "como"]):
+        return "proceso"
+
+    return "descripcion"
+
+def interpretar_pregunta(texto: str):
+    intencion = detectar_intencion_semantica(texto)
+    entidad = extraer_tema_historico(texto)
+
+    return {
+        "intencion": intencion,
+        "entidad": entidad
+    }
+
 # =========================
 # WIKIPEDIA (CONOCIMIENTO TEMPORAL)
 # =========================
@@ -214,21 +246,49 @@ def buscar_wikipedia(tema: str):
 
 def obtener_conocimiento_historico(texto: str):
 
-    # 1️⃣ memoria local
-    local = responder_historia_local(texto)
-    if local:
-        return local
+    interpretacion = interpretar_pregunta(texto)
+    intencion = interpretacion["intencion"]
+    entidad = interpretacion["entidad"]
 
-    # 2️⃣ extracción de tema
-    tema = extraer_tema_historico(texto)
+    # 1️⃣ buscar datos
+    informacion = buscar_wikipedia(entidad)
 
-    # 3️⃣ búsqueda externa
-    externo = buscar_wikipedia(tema)
-    if externo:
-        return externo
+    if not informacion:
+        return "No encontré información histórica sobre ese tema."
 
-    # 4️⃣ razonamiento
-    return razonar_pregunta(texto)
+    # 2️⃣ responder según intención
+    if intencion == "causa":
+        return (
+            f"Las principales causas relacionadas con {entidad} fueron:\n\n"
+            f"{informacion}"
+        )
+
+    if intencion == "consecuencias":
+        return (
+            f"Las principales consecuencias históricas de {entidad} incluyen:\n\n"
+            f"{informacion}"
+        )
+
+    if intencion == "fecha":
+        return (
+            f"En cuanto a fechas importantes sobre {entidad}:\n\n"
+            f"{informacion}"
+        )
+
+    if intencion == "persona":
+        return (
+            f"{entidad.title()} fue una figura histórica relevante.\n\n"
+            f"{informacion}"
+        )
+
+    if intencion == "proceso":
+        return (
+            f"El proceso histórico relacionado con {entidad} se desarrolló así:\n\n"
+            f"{informacion}"
+        )
+
+    # descripción general
+    return informacion
 
 # =========================
 # FASTAPI
