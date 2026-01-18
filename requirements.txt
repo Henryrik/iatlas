@@ -3,3 +3,5 @@ uvicorn
 requests
 googlesearch-python
 trafilatura
+sympy
+lxml
